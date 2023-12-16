@@ -207,6 +207,9 @@ if __name__ == '__main__':
   
   replay_buffer_size=100000
   replay_buffer = ReplayBuffer(replay_buffer_size)
+  # Since we need to push rho at the end of each episode
+  # we cumulate the transitions and at the end we push the results to replay_buffer
+  local_buffer = []
   
   #Define Training Hyperparameters:
   max_frames = 120
@@ -223,25 +226,28 @@ if __name__ == '__main__':
     episode_reward = 0
     print('frame_idx = ', frame_idx)
 
-    
+    local_buffer = []
     for step in range(max_steps):
       if frame_idx > 50:
         action = policy_net.get_action(state).detach()
         next_state, reward, done, _ = env.step(action.numpy())
-      elif frame_idx == 50:
-        action = env.action_space.sample()
-        next_state, reward, done, _ = env.step(action)
+      # elif frame_idx == 50:
+      #   action = env.action_space.sample()
+      #   next_state, reward, done, _ = env.step(action)
       else: 
         action = env.action_space.sample()
         next_state, reward, done, _ = env.step(action)
       
-      replay_buffer.push(state, action, reward, next_state, done)
-    
+      local_buffer.append( (state, action, reward, next_state, done) )
       state = next_state
       episode_reward += reward
       frame_idx += 1
     
-      if len(replay_buffer) > batch_size:
+      # the size of the buffer will be
+      #replay_buffer_final_size = len(replay_buffer) + len(replay_local_buffer)
+
+      if frame_idx > 0: #and replay_buffer_final_size > batch_size:
+        #update replay_buffer with the new data
         update(batch_size)
       
       if frame_idx % 1000 == 0:
@@ -249,7 +255,11 @@ if __name__ == '__main__':
       
       if done:
         break
-      
+
+        
+    # replay_buffer.push(state, action, reward, next_state, done, episode_reward)
+    replay_buffer.push(local_buffer, episode_reward)
+
     rewards.append(episode_reward)
     avg_reward = np.mean(rewards[-100:])
     print("Frame * {} * Avg Reward is ==> {}".format(frame_idx, avg_reward))
