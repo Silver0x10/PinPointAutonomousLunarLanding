@@ -55,8 +55,8 @@ class ReplayBuffer:
 
     priority_scores_batches = []
     for i,batch in enumerate(batches):
-      priority_scores_batches.append([]) # TODO why none?
-      # priority = batch[0][-1]
+      priority_scores_batches.append([])
+      
       for (state, action, reward, next_state, done, rho) in batch:
         priority_scores_batches[i].append(rho)
 
@@ -76,7 +76,7 @@ class ReplayBuffer:
     #otherwise we get one of the batches using uniform distribution
     #print(cosine_similarity_value)
     SDP_flag = True if max(cosine_similarity_value) <= self.threshold else False
-
+        
     if SDP_flag:
     # Combine and flatten the arrays using a for loop
       merged_batches = []
@@ -93,10 +93,7 @@ class ReplayBuffer:
       final_batch = sorted_batches[:batch_size]
     else:
       # Randomly sample a batch
-      #print('2')
-      #print(batch)
-      #print(np.array(batch).shape)
-      final_batch = np.array(random.sample(batches,1)).squeeze(0)# np.random.choice(batches, size=1)#, replace=False)
+      final_batch = random.choice(batches) #np.array(random.sample(batches,1)).squeeze(0)# np.random.choice(batches, size=1)#, replace=False)
 
     #TODO 1: now we add the latest experience on policy (latest transition) to the batch (MO/O step)
     # Select a random index
