@@ -144,7 +144,12 @@ def update(batch_size, gamma=0.99, soft_tau=1e-2):
   
   #Value Function Training:    
   predicted_new_q_value = torch.min(soft_q_net1(state, new_action), soft_q_net2(state, new_action))
-  target_value_func = predicted_new_q_value - log_prob
+  
+  # TODO chech this difference. probably we have to do a conditioning on the action
+  # It causes the following warning computing the MSE loss:
+  #   UserWarning: Using a target size (torch.Size([10, 4])) that is different to the input size (torch.Size([10, 1])). This will likely lead to incorrect results due to broadcasting. Please ensure they have the same size. return F.mse_loss(input, target, reduction=self.reduction)
+  target_value_func = predicted_new_q_value - log_prob 
+  
   value_loss = value_criterion(predicted_value, target_value_func.detach())
   
   value_optimizer.zero_grad()
@@ -213,25 +218,24 @@ if __name__ == '__main__':
   local_buffer = []
   
   #Define Training Hyperparameters:
-  max_frames = 120
-  max_steps = 500
+  max_frames = 1000
+  max_steps = 100
   frame_idx = 0
+  episode = 0
+  #total_episodes = 10
   rewards = [] 
   avg_reward_list = []
-  batch_size = 10#128
+  batch_size = 2 # 128
 
   episode_reward_list = []
   steps_list = []
-  #total_episodes = 10
-  # TODO: SOLVE THIS WARNING?????
-  # /home/ghost/planetlanding/lib/python3.8/site-packages/torch/nn/modules/loss.py:446: UserWarning: Using a target size (torch.Size([10, 4])) that is different to the input size (torch.Size([10, 1])). This will likely lead to incorrect results due to broadcasting. Please ensure they have the same size.
-  # return F.mse_loss(input, target, reduction=self.reduction)
   
   #Train with episodes:
   while frame_idx < max_frames:
     state = env.reset()
     episode_reward = 0
-    print('frame_idx = ', frame_idx)
+    episode += 1
+    print('\nEpisode', episode, 'starting at frame_idx = ', frame_idx)
     step = 0
     while step <= max_steps:
       if frame_idx > 50:
@@ -244,42 +248,38 @@ if __name__ == '__main__':
         action = env.action_space.sample()
         next_state, reward, done, _ = env.step(action)
       
+      print("reward", reward, 'at step', step)
 
       local_buffer.append( (state, action, reward, next_state, done) )
       replay_buffer.set_latest_transition(local_buffer[-1])
-      
 
       state = next_state
       episode_reward += reward
       episode_reward_list.append(episode_reward)
       frame_idx += 1
-    
-      # the size of the buffer will be
-      #replay_buffer_final_size = len(replay_buffer) + len(replay_local_buffer)
-
-      if len(replay_buffer) >= batch_size:#*2: #and replay_buffer_final_size > batch_size:
-        #update replay_buffer with the new data
+      step+=1
+      
+      if len(replay_buffer) >= batch_size:#*2 # update the networks
         update(batch_size)
       
       if frame_idx % 1000 == 0:
         plot(frame_idx, rewards)
-
-      step+=1
+        
       if done:
         break
 
-      
     #we remember how many step we did in our episode
     steps_list.append(step)
     # The idea is to delay the infusion  of new experience to the replay_buffer 
     # avoiding overfitting so that the network will be trained more using old experience
-    if frame_idx%2 == 0:
+    # TODO reactivathe Delayed infusion (deactivated only for testing reasons)
+    # if episode % 2 == 0:
       # replay_buffer.push(state, action, reward, next_state, done, episode_reward)
-      print("update the replay buffer")
-      replay_buffer.push_transitions(local_buffer, episode_reward_list, steps_list)
-      episode_reward_list = []
-      local_buffer = []
-      steps_list = []
+    print("Updating the replay buffer...")
+    replay_buffer.push_transitions(local_buffer, episode_reward_list, steps_list)
+    episode_reward_list = []
+    local_buffer = []
+    steps_list = []
 
     rewards.append(episode_reward)
     avg_reward = np.mean(rewards[-100:])
