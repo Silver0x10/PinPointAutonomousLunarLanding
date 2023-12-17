@@ -171,7 +171,7 @@ class LanderGymEnv(gym.Env):
       reward_2 = -15
       
     reward = reward_1 + reward_2
-    print("reward: ", reward)
+    # print("reward: ", reward)
     #print("roll, pitch = ", roll, pitch)
     #print("tot_thr = ", tot_thr)
     return reward
