@@ -100,6 +100,7 @@ class PolicyNetwork(nn.Module):
     z = normal.sample()
     action = torch.tanh(mean + std*z.to(device))
     log_prob = Normal(mean, std).log_prob(mean + std*z.to(device)) - torch.log(1 - action.pow(2) + epsilon)
+    log_prob = log_prob.sum(1, keepdim=True)
     return action, log_prob, z, mean, log_std
     
   def get_action(self, state):
@@ -145,17 +146,14 @@ def update(batch_size, gamma=0.99, soft_tau=1e-2):
   #Value Function Training:    
   predicted_new_q_value = torch.min(soft_q_net1(state, new_action), soft_q_net2(state, new_action))
   
-  # TODO chech this difference. probably we have to do a conditioning on the action
-  # It causes the following warning computing the MSE loss:
-  #   UserWarning: Using a target size (torch.Size([10, 4])) that is different to the input size (torch.Size([10, 1])). This will likely lead to incorrect results due to broadcasting. Please ensure they have the same size. return F.mse_loss(input, target, reduction=self.reduction)
   target_value_func = predicted_new_q_value - log_prob 
+  #print(predicted_new_q_value.shape, log_prob.shape, predicted_value.shape, target_value_func.shape)
   
   value_loss = value_criterion(predicted_value, target_value_func.detach())
   
   value_optimizer.zero_grad()
   value_loss.backward()
   value_optimizer.step()
-  
   #Policy Function Training
   policy_loss = (log_prob - predicted_new_q_value).mean()
   policy_optimizer.zero_grad()
@@ -260,6 +258,7 @@ if __name__ == '__main__':
       step+=1
       
       if len(replay_buffer) >= batch_size:#*2 # update the networks
+        print("Update the network weights...")
         update(batch_size)
       
       if frame_idx % 1000 == 0:

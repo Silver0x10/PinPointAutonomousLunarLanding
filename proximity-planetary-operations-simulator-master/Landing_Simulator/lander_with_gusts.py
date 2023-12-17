@@ -174,7 +174,7 @@ class Lander:
     
   def applyAction(self, thrusterCommands):
   
-    print("thrusterCommands:", thrusterCommands)
+    #print("thrusterCommands:", thrusterCommands)
     #self.landerUniqueId = lander
   
     #self.baseForce = 0.
@@ -207,6 +207,6 @@ class Lander:
     self._p.applyExternalForce(self.landerUniqueId, -1, self.gust1, [0, 0, .10], flags=self._p.LINK_FRAME)
     self._p.applyExternalForce(self.landerUniqueId, -1, self.gust2, [0, 0, .28], flags=self._p.LINK_FRAME)
     
-    print('gust1 value: ', self.gust1)
-    print('gust2 value: ', self.gust2) 
+    #print('gust1 value: ', self.gust1)
+    #print('gust2 value: ', self.gust2) 
     
