@@ -171,7 +171,7 @@ def plot(frame_idx, rewards):
 
 if __name__ == '__main__':
   
-  env = LanderGymEnv(renders=True)
+  env = LanderGymEnv(renders=False)
   #env = NormalizedActions(env)  
   print('OK! Environment configuration successful!')
   state_dim = env.observation_space.shape[0]
@@ -218,20 +218,22 @@ if __name__ == '__main__':
   frame_idx = 0
   rewards = [] 
   avg_reward_list = []
-  batch_size = 128
-
+  batch_size = 10#128
 
   episode_reward_list = []
+  steps_list = []
   #total_episodes = 10
+  # TODO: SOLVE THIS WARNING?????
+  # /home/ghost/planetlanding/lib/python3.8/site-packages/torch/nn/modules/loss.py:446: UserWarning: Using a target size (torch.Size([10, 4])) that is different to the input size (torch.Size([10, 1])). This will likely lead to incorrect results due to broadcasting. Please ensure they have the same size.
+  # return F.mse_loss(input, target, reduction=self.reduction)
   
   #Train with episodes:
   while frame_idx < max_frames:
     state = env.reset()
     episode_reward = 0
     print('frame_idx = ', frame_idx)
-
-    local_buffer = []
-    for step in range(max_steps):
+    step = 0
+    while step <= max_steps:
       if frame_idx > 50:
         action = policy_net.get_action(state).detach()
         next_state, reward, done, _ = env.step(action.numpy())
@@ -242,30 +244,42 @@ if __name__ == '__main__':
         action = env.action_space.sample()
         next_state, reward, done, _ = env.step(action)
       
+
       local_buffer.append( (state, action, reward, next_state, done) )
+      replay_buffer.set_latest_transition(local_buffer[-1])
+      
+
       state = next_state
       episode_reward += reward
+      episode_reward_list.append(episode_reward)
       frame_idx += 1
     
       # the size of the buffer will be
       #replay_buffer_final_size = len(replay_buffer) + len(replay_local_buffer)
 
-      if len(local_buffer) >= batch_size: #and replay_buffer_final_size > batch_size:
+      if len(replay_buffer) >= batch_size:#*2: #and replay_buffer_final_size > batch_size:
         #update replay_buffer with the new data
         update(batch_size)
       
       if frame_idx % 1000 == 0:
         plot(frame_idx, rewards)
-      
+
+      step+=1
       if done:
         break
-    episode_reward_list.append(episode_reward)
-    
+
+      
+    #we remember how many step we did in our episode
+    steps_list.append(step)
     # The idea is to delay the infusion  of new experience to the replay_buffer 
     # avoiding overfitting so that the network will be trained more using old experience
-    if frame_idx%10 == 0:
+    if frame_idx%2 == 0:
       # replay_buffer.push(state, action, reward, next_state, done, episode_reward)
-      replay_buffer.push_transitions(local_buffer, episode_reward_list, max_steps)
+      print("update the replay buffer")
+      replay_buffer.push_transitions(local_buffer, episode_reward_list, steps_list)
+      episode_reward_list = []
+      local_buffer = []
+      steps_list = []
 
     rewards.append(episode_reward)
     avg_reward = np.mean(rewards[-100:])
