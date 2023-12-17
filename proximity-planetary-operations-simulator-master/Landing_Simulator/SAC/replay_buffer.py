@@ -10,18 +10,36 @@ class ReplayBuffer:
   def __init__(self, capacity):
     self.capacity = capacity
     self.buffer = []
+    #TODO 1: use a new variable for on-policy transition?
+    self.latest_transition_on_policy = ()
     self.position = 0
     self.threshold = 0.5
     
 
- 
-  def push(self, state, action, reward, next_state, done, rho):
-    # Where rho is the priority score for a transition ( is the cumulative reward of an episode)
+  def push_transitions(self, transitions, rho_list, max_step):
+    # in rho list we have the cumulative reward for each episode
+    # so we will use max_step that says to us given a cumulative reward,
+    # how many transitions has the same cumulative reward
+    assert len(transitions)/max_step == rho_list, "Error in the length of rho_list"
+
+    idx = 0
+    for (state, action, reward, next_state, done) in transitions:
+      if max_step == idx:
+        idx = 0
+      self.push_transition(state, action, reward, next_state, done, rho_list[idx])
+      idx+=1
+
+
+
+  def push_transition(self, state, action, reward, next_state, done, rho):
+    # Where rho is the priority score for a transition ( is the cumulative reward of an episode )
 
     if len(self.buffer) < self.capacity:
       self.buffer.append(None)
     self.buffer[self.position] = (state, action, reward, next_state, done, rho)
     self.position = (self.position + 1) % self.capacity
+    #TODO: when self.position = 0, save space by imposing the buffer = none?
+
 
 
   def sample(self, batch_size, num_batches):
@@ -58,18 +76,25 @@ class ReplayBuffer:
           merged_batches.extend([transition for transition in batch])
 
       batches,priority_scores_batches,cosine_similarity_value = [],[],[] # save memory
-      
+
       # Sort the list based on the last element of each tuple (rho)
       # in batch[-1] we have rho
       sorted_batches = sorted(merged_batches, key=lambda batch: batch[-1], reverse=True)
       # Get the first k elements from the sorted list
-      batch_k_best_transitions = sorted_batches[:batch_size]
-      return batch_k_best_transitions
+      final_batch = sorted_batches[:batch_size]
+
       #batch_index is the index of the batch with the highest cumulative reward (rho)
     else:
       # Randomly sample a batch
-      random_sampled_batch = np.random.choice(batches, size=1)#, replace=False)
-      return random_sampled_batch
+      final_batch =random.sample(batches,1)# np.random.choice(batches, size=1)#, replace=False)
+
+    #TODO 1: now we add the latest experience on policy (latest transition) to the batch (MO/O step)
     
+    state, action, reward, next_state, done = map(np.stack, zip(*final_batch))
+    return state, action, reward, next_state, done
+    
+    
+
+
   def __len__(self):
     return len(self.buffer)

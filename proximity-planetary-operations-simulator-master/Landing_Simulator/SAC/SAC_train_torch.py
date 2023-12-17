@@ -112,7 +112,8 @@ class PolicyNetwork(nn.Module):
     action = action.cpu()
     return action[0]
     
-  
+
+
 def update(batch_size, gamma=0.99, soft_tau=1e-2):
   state, action, reward, next_state, done = replay_buffer.sample(batch_size)
   
@@ -218,6 +219,9 @@ if __name__ == '__main__':
   rewards = [] 
   avg_reward_list = []
   batch_size = 128
+
+
+  episode_reward_list = []
   #total_episodes = 10
   
   #Train with episodes:
@@ -246,7 +250,7 @@ if __name__ == '__main__':
       # the size of the buffer will be
       #replay_buffer_final_size = len(replay_buffer) + len(replay_local_buffer)
 
-      if frame_idx > 0: #and replay_buffer_final_size > batch_size:
+      if len(local_buffer) >= batch_size: #and replay_buffer_final_size > batch_size:
         #update replay_buffer with the new data
         update(batch_size)
       
@@ -255,10 +259,13 @@ if __name__ == '__main__':
       
       if done:
         break
-
-        
-    # replay_buffer.push(state, action, reward, next_state, done, episode_reward)
-    replay_buffer.push(local_buffer, episode_reward)
+    episode_reward_list.append(episode_reward)
+    
+    # The idea is to delay the infusion  of new experience to the replay_buffer 
+    # avoiding overfitting so that the network will be trained more using old experience
+    if frame_idx%10 == 0:
+      # replay_buffer.push(state, action, reward, next_state, done, episode_reward)
+      replay_buffer.push_transitions(local_buffer, episode_reward_list, max_steps)
 
     rewards.append(episode_reward)
     avg_reward = np.mean(rewards[-100:])
