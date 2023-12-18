@@ -5,6 +5,7 @@ class AsyncAgent(torch.multiprocessing.Process):
     super(AsyncAgent, self).__init__()
     self.id = id
     self.global_episode_counter = global_episode_counter
+    self.local_buffer = []
     # self.env = LanderGymEnv(renders=False)
     print('Starting agent', self.id)
   
