@@ -32,6 +32,7 @@ class ReplayBuffer:
       if max_step[idx_reward] == counter_items:
         counter_items = 0
         idx_reward+=1
+        # same rho value for every transition of the corresponding episode
       self.push_transition(state, action, reward, next_state, done, rho_list[idx_reward])
       counter_items+=1
 
