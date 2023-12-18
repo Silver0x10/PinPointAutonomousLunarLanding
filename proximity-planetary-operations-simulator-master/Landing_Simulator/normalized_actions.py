@@ -7,8 +7,8 @@ class NormalizedActions(gym.ActionWrapper):
     low = self.env.action_space.low[0]
     high = self.env.action_space.high[0]
     
+    # TODO check normalization
     # action = low + (action + 1) * 0.5 * (high - low)
-    # print('###########', action)
     # action = np.clip(action, low, high)
     
     return action

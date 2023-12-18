@@ -19,9 +19,15 @@ class Lander:
     self.reset()
     
   def reset(self):
-    self.terrainObject = self._p.loadURDF("../pybullet_data/terrain.urdf")
-    #self.terrainObject2 = self._p.loadURDF("plane_background.urdf") #Uncomment for Titan env
-    lander = self._p.loadURDF("../pybullet_data/lander_1.urdf", self.cubeStartPos, self.cubeStartOrientation)
+    try:
+      self.terrainObject = self._p.loadURDF("pybullet_data/terrain.urdf")
+      #self.terrainObject2 = self._p.loadURDF("plane_background.urdf") #Uncomment for Titan env
+      lander = self._p.loadURDF("pybullet_data/lander_1.urdf", self.cubeStartPos, self.cubeStartOrientation)
+    except:
+      self.terrainObject = self._p.loadURDF("../pybullet_data/terrain.urdf")
+      #self.terrainObject2 = self._p.loadURDF("../plane_background.urdf") #Uncomment for Titan env
+      lander = self._p.loadURDF("../pybullet_data/lander_1.urdf", self.cubeStartPos, self.cubeStartOrientation)
+      
     self.landerUniqueId = lander
     
     self.baseForce = 0.

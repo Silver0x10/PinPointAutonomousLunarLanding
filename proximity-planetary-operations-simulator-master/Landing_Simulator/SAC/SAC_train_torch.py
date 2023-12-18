@@ -13,7 +13,7 @@ import sys
 sys.path.append('.')
 sys.path.append('..')
 
-from prioritized_replay_buffer import ReplayBuffer
+from replay_buffer import ReplayBuffer
 #from normalized_actions import NormalizedActions
 from model import ValueNetwork, SoftQNetwork, PolicyNetwork
 
@@ -28,8 +28,8 @@ print('OK! All imports successful!')
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print('Device set to : ' + str(torch.cuda.get_device_name(device)))
-
-
+    
+  
 def update(batch_size, gamma=0.99, soft_tau=1e-2):
   state, action, reward, next_state, done = replay_buffer.sample(batch_size)
   
@@ -60,15 +60,13 @@ def update(batch_size, gamma=0.99, soft_tau=1e-2):
   
   #Value Function Training:    
   predicted_new_q_value = torch.min(soft_q_net1(state, new_action), soft_q_net2(state, new_action))
-  
-  target_value_func = predicted_new_q_value - log_prob 
-  #print(predicted_new_q_value.shape, log_prob.shape, predicted_value.shape, target_value_func.shape)
-  
+  target_value_func = predicted_new_q_value - log_prob
   value_loss = value_criterion(predicted_value, target_value_func.detach())
   
   value_optimizer.zero_grad()
   value_loss.backward()
   value_optimizer.step()
+  
   #Policy Function Training
   policy_loss = (log_prob - predicted_new_q_value).mean()
   policy_optimizer.zero_grad()
@@ -126,80 +124,59 @@ if __name__ == '__main__':
   
   replay_buffer_size=100000
   replay_buffer = ReplayBuffer(replay_buffer_size)
-  # Since we need to push rho at the end of each episode
-  # we cumulate the transitions and at the end we push the results to replay_buffer
-  local_buffer = []
   
   #Define Training Hyperparameters:
-  max_frames = 1000
-  max_steps = 100
+  max_frames = 120
+  max_steps = 500
   frame_idx = 0
-  episode = 0
-  #total_episodes = 10
   rewards = [] 
   avg_reward_list = []
-  batch_size = 2 # 128
-
-  episode_reward_list = []
-  steps_list = []
+  batch_size = 128
+  #total_episodes = 10
   
   #Train with episodes:
   while frame_idx < max_frames:
     state = env.reset()
     episode_reward = 0
-    episode += 1
-    print('\nEpisode', episode, 'starting at frame_idx = ', frame_idx)
-    step = 0
-    while step <= max_steps:
+    print('frame_idx = ', frame_idx)
+
+    
+    for step in range(max_steps):
       if frame_idx > 50:
         action = policy_net.get_action(state).detach()
         next_state, reward, done, _ = env.step(action.numpy())
+      elif frame_idx == 50:
+        action = env.action_space.sample()
+        next_state, reward, done, _ = env.step(action)
       else: 
         action = env.action_space.sample()
         next_state, reward, done, _ = env.step(action)
       
-      print("reward", reward, 'at step', step)
-
-      local_buffer.append( (state, action, reward, next_state, done) )
-      replay_buffer.set_latest_transition(local_buffer[-1])
-
+      replay_buffer.push(state, action, reward, next_state, done)
+    
       state = next_state
       episode_reward += reward
-      episode_reward_list.append(episode_reward)
       frame_idx += 1
-      step+=1
-      
-      if len(replay_buffer) >= batch_size:#*2 # update the networks
-        print("Update the network weights...")
+    
+      if len(replay_buffer) > batch_size:
         update(batch_size)
       
       if frame_idx % 1000 == 0:
         plot(frame_idx, rewards)
-        
+      
       if done:
         break
-
-    #we remember how many step we did in our episode
-    steps_list.append(step)
-    # The idea is to delay the infusion  of new experience to the replay_buffer 
-    # avoiding overfitting so that the network will be trained more using old experience
-    if episode % 2 == 0:
-      print("Updating the replay buffer...")
-      replay_buffer.push_transitions(local_buffer, episode_reward_list, steps_list)
-      episode_reward_list = []
-      local_buffer = []
-      steps_list = []
-
+      
     rewards.append(episode_reward)
     avg_reward = np.mean(rewards[-100:])
     print("Frame * {} * Avg Reward is ==> {}".format(frame_idx, avg_reward))
     avg_reward_list.append(avg_reward)
     
-  torch.save(value_net.state_dict(), 'ISAC_weights/weights_value_net.pt')
-  torch.save(target_value_net.state_dict(), 'ISAC_weights/weights_target_value_net.pt')
-  torch.save(soft_q_net1.state_dict(), 'ISAC_weights/weights_soft_q_net1.pt')
-  torch.save(soft_q_net2.state_dict(), 'ISAC_weights/weights_soft_q_net2.pt')
-  torch.save(policy_net.state_dict(), 'ISAC_weights/policy_net.pt')
+  torch.save(value_net.state_dict(), 'SAC_weights/weights_value_net.pt')
+  torch.save(target_value_net.state_dict(), 'SAC_weights/weights_target_value_net.pt')
+  torch.save(soft_q_net1.state_dict(), 'SAC_weights/weights_soft_q_net1.pt')
+  torch.save(soft_q_net2.state_dict(), 'SAC_weights/weights_soft_q_net2.pt')
+  torch.save(policy_net.state_dict(), 'SAC_weights/policy_net.pt')
     
   plt.plot(avg_reward_list)
   plt.xlabel("Episodes")
