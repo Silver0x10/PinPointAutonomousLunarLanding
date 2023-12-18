@@ -63,9 +63,13 @@ def main():
   local_buffer = []
   
   # Define shared stuff
-  manager = Manager()
+  manager_shared_var = Manager()
   global_episode_counter = torch.multiprocessing.Value('i', 0)
-  delay_local_buffer = manager.list()
+  delay_local_buffer = manager_shared_var.list()
+  filename = "AISAC_weights/weights.pt"
+  # Create a shared lock for file access
+  file_lock = manager_shared_var.Lock()
+  
   last_infusion_episode = 0
   last_plot_episode = 0
   #Define Training Hyperparameters:
@@ -81,12 +85,15 @@ def main():
 
   # episode_reward_list = []
   # steps_list = []
-  
-  agents = [AsyncAgent(i, global_episode_counter) for i in range(n_async_processes)]
+
+
+  agents = [AsyncAgent(i, global_episode_counter,delay_local_buffer,manager_shared_var,hidden_dim,filename,file_lock) for i in range(n_async_processes)]
 
   [agent.start() for agent in agents]
+  print("All the ",n_async_processes," Agents are ready!")
   [agent.join() for agent in agents]
-  
+  print("All the ",n_async_processes," Agents are killed!")
+
   #Train with episodes:
   while global_episode_counter.value < max_episodes:
     state = env.reset()
@@ -127,6 +134,8 @@ def main():
         break
     
     for transition in local_buffer: transition.append(episode_reward) # push the cumulative reward to the replay buffer
+    # maybe the push here, better to do it not every episode so that delay_local_buffer is not always taken by some agent
+    # having an overall improvement in performance since we do less updates (and so less get_lock() and less waiting)
 
     with delay_local_buffer.get_lock(): # push the transitions to the delay_local_buffer
       for transition in local_buffer: delay_local_buffer.append(tuple(transition))
@@ -144,7 +153,7 @@ def main():
     # The idea is to delay the infusion  of new experience to the replay_buffer 
     # avoiding overfitting so that the network will be trained more using old experience
     if global_episode_counter.value - last_infusion_episode > 2:
-      print("Updating the replay buffer...")
+      print("Main Agent is updating the shared replay buffer...")
       last_infusion_episode = global_episode_counter.value
       with delay_local_buffer.get_lock():
         for transition in delay_local_buffer: replay_buffer.push_transition(transition)
