@@ -51,48 +51,41 @@ def main():
   lower_bound = env.action_space.low[0]
   print("max value of action -> {}".format(upper_bound))
   print("min value of action -> {}".format(lower_bound))
+  
+  device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+  print('Device set to : ' + str(torch.cuda.get_device_name(device)))
+  async_device = torch.device("cpu")
+  
+  # Define Training Hyperparameters:
   replay_buffer_size=100000
+  max_steps = 100
+  frame_idx = 0
+  max_episodes = 10
+  rewards = [] 
+  avg_reward_list = []
+  batch_size = 2 # 128
+  n_async_processes = 1
+  network_hidden_dim = 256
+  
+  network = NetworksManager(device, state_dim, action_dim, network_hidden_dim)
+  weights_filename = "weights/AISAC_weights"
+  network.save(weights_filename)
   replay_buffer = ReplayBuffer(replay_buffer_size)
-  
-  hidden_dim = 256
-  network = NetworksManager(state_dim, action_dim, hidden_dim, replay_buffer)
-  # TODO Save weights if not present
-  
-  # Since we need to push rho at the end of each episode
-  # we cumulate the transitions and at the end we push the results to replay_buffer
-  local_buffer = []
+  local_buffer = [] # cumulate the transitions here and at the end of each episode push the cumulative reward (rho) to replay_buffer
+  last_infusion_episode = 0
+  last_plot_episode = 0
   
   # Define shared stuff
   manager_shared_var = Manager()
   global_episode_counter = torch.multiprocessing.Value('i', 0)
   delay_local_buffer = manager_shared_var.list()
-  filename = "AISAC_weights/weights.pt"
-  # Create a shared lock for file access
-  file_lock = manager_shared_var.Lock()
+  weights_file_lock = manager_shared_var.Lock() # Shared lock for file access
+
+  agents = [AsyncAgent(i, async_device, global_episode_counter, delay_local_buffer, network_hidden_dim, weights_filename, weights_file_lock, max_episodes) for i in range(n_async_processes)]
   
-  last_infusion_episode = 0
-  last_plot_episode = 0
-  #Define Training Hyperparameters:
-  # max_frames = 1000
-  max_steps = 100
-  frame_idx = 0
-  max_episodes = 10
-  #total_episodes = 10
-  rewards = [] 
-  avg_reward_list = []
-  batch_size = 2 # 128
-  n_async_processes = 3
-
-  # episode_reward_list = []
-  # steps_list = []
-
-
-  agents = [AsyncAgent(i, global_episode_counter,delay_local_buffer,manager_shared_var,hidden_dim,filename,file_lock,max_episodes) for i in range(n_async_processes)]
-
   [agent.start() for agent in agents]
   print("All the ",n_async_processes," Agents are ready!")
   [agent.join() for agent in agents]
-  print("All the ",n_async_processes," Agents are killed!")
 
   #Train with episodes:
   while global_episode_counter.value < max_episodes:
@@ -117,7 +110,6 @@ def main():
 
       state = next_state
       episode_reward += reward
-      # episode_reward_list.append(episode_reward)
       frame_idx += 1
       step+=1
       
@@ -140,10 +132,6 @@ def main():
     with delay_local_buffer.get_lock(): # push the transitions to the delay_local_buffer
       for transition in local_buffer: delay_local_buffer.append(tuple(transition))
     local_buffer = []
-    # episode_reward_list = []
-    # steps_list = []
-    #we remember how many step we did in our episode
-    # steps_list.append(step)
     
     rewards.append(episode_reward)
     avg_reward = np.mean(rewards[-100:])
@@ -159,14 +147,8 @@ def main():
         for transition in delay_local_buffer: replay_buffer.push_transition(transition)
         delay_local_buffer.clear()
         
-  # TODO save the weights
   torch.save(network.state_dict(), 'AISAC_weights/weights.pt')
-  # torch.save(network.value_net.state_dict(), 'AISAC_weights/weights_value_net.pt')
-  # torch.save(network.target_value_net.state_dict(), 'AISAC_weights/weights_target_value_net.pt')
-  # torch.save(network.soft_q_net1.state_dict(), 'AISAC_weights/weights_soft_q_net1.pt')
-  # torch.save(network.soft_q_net2.state_dict(), 'AISAC_weights/weights_soft_q_net2.pt')
-  # torch.save(network.policy_net.state_dict(), 'AISAC_weights/policy_net.pt')
-    
+      
   plt.plot(avg_reward_list)
   plt.xlabel("Episodes")
   plt.ylabel("Avg. Episodic Reward")
