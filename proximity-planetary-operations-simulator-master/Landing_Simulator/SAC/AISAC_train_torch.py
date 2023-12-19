@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.distributions import Normal
 from torch.multiprocessing import Manager
+import os
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -52,8 +53,9 @@ def main():
   print("max value of action -> {}".format(upper_bound))
   print("min value of action -> {}".format(lower_bound))
   
-  device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-  print('Device set to : ' + str(torch.cuda.get_device_name(device)))
+  device = torch.device("cpu")
+  # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+  # print('Device set to : ' + str(torch.cuda.get_device_name(device)))
   async_device = torch.device("cpu")
   
   # Define Training Hyperparameters:
@@ -63,8 +65,8 @@ def main():
   max_episodes = 10
   rewards = [] 
   avg_reward_list = []
-  batch_size = 2 # 128
-  n_async_processes = 1
+  batch_size = 16 # 128
+  n_async_processes = 2
   network_hidden_dim = 256
   
   network = NetworksManager(device, state_dim, action_dim, network_hidden_dim)
@@ -76,24 +78,26 @@ def main():
   last_plot_episode = 0
   
   # Define shared stuff
-  manager_shared_var = Manager()
+  manager_shared_data = Manager()
   global_episode_counter = torch.multiprocessing.Value('i', 0)
-  delay_local_buffer = manager_shared_var.list()
-  weights_file_lock = manager_shared_var.Lock() # Shared lock for file access
+  delayed_buffer = manager_shared_data.list()
+  delayed_buffer_lock = manager_shared_data.Lock()
+  weights_file_lock = manager_shared_data.Lock() # Shared lock for file access
 
-  agents = [AsyncAgent(i, async_device, global_episode_counter, delay_local_buffer, network_hidden_dim, weights_filename, weights_file_lock, max_episodes) for i in range(n_async_processes)]
+  agents = [AsyncAgent(i, async_device, global_episode_counter, delayed_buffer, delayed_buffer_lock, network_hidden_dim, weights_filename, weights_file_lock, max_episodes, state_dim, action_dim) for i in range(n_async_processes)]
   
   [agent.start() for agent in agents]
   print("All the ",n_async_processes," Agents are ready!")
-  [agent.join() for agent in agents]
 
   #Train with episodes:
+  episode = None
   while global_episode_counter.value < max_episodes:
     state = env.reset()
     episode_reward = 0
     with global_episode_counter.get_lock():
       global_episode_counter.value += 1
-    print('\nEpisode', global_episode_counter.value, 'starting at frame_idx = ', frame_idx)
+      episode = global_episode_counter.value
+    print('Agent MAIN\tEpisode', episode, 'starting at frame_idx = ', frame_idx)
     step = 0
     while step <= max_steps:
       if frame_idx > 50:
@@ -103,7 +107,7 @@ def main():
         action = env.action_space.sample()
         next_state, reward, done, _ = env.step(action)
       
-      print("reward", reward, 'at step', step)
+      print('Agent MAIN\tEpisode', episode, "-> reward", reward, 'at step', step)
 
       local_buffer.append( [state, action, reward, next_state, done] )
       replay_buffer.set_latest_transition(local_buffer[-1])
@@ -114,9 +118,10 @@ def main():
       step+=1
       
       if len(replay_buffer) >= batch_size:#*2 # update the networks
-        print("Update the network weights...")
+        print("Update the network weights...", 'Replay_buffer size = ', len(replay_buffer))
         network.update(replay_buffer, batch_size)
-        # TODO save the weight periodically
+        # TODO check if it does not cause problems to the loading
+        with weights_file_lock: network.save(weights_filename)
       
       if global_episode_counter.value - last_plot_episode > 1000:
         plot(frame_idx, rewards)
@@ -129,8 +134,8 @@ def main():
     # maybe the push here, better to do it not every episode so that delay_local_buffer is not always taken by some agent
     # having an overall improvement in performance since we do less updates (and so less get_lock() and less waiting)
 
-    with delay_local_buffer.get_lock(): # push the transitions to the delay_local_buffer
-      for transition in local_buffer: delay_local_buffer.append(tuple(transition))
+    with delayed_buffer_lock: 
+      for transition in local_buffer: delayed_buffer.append(tuple(transition)) # push the transitions to the delay_local_buffer
     local_buffer = []
     
     rewards.append(episode_reward)
@@ -143,11 +148,12 @@ def main():
     if global_episode_counter.value - last_infusion_episode > 2:
       print("Main Agent is updating the shared replay buffer...")
       last_infusion_episode = global_episode_counter.value
-      with delay_local_buffer.get_lock():
-        for transition in delay_local_buffer: replay_buffer.push_transition(transition)
-        delay_local_buffer.clear()
+      with delayed_buffer_lock:
+        for transition in delayed_buffer: replay_buffer.push_transition(*transition)
+        delayed_buffer = manager_shared_data.list()
         
-  torch.save(network.state_dict(), 'AISAC_weights/weights.pt')
+  with weights_file_lock: network.save(weights_filename)
+  [agent.join() for agent in agents] # wait for all the agents to finish
       
   plt.plot(avg_reward_list)
   plt.xlabel("Episodes")

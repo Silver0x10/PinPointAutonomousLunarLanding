@@ -5,8 +5,8 @@ import random
 import os
 import pybullet as p
 import pybullet_data
-#from pybullet_utils import bullet_client as bc
-import bullet_client as bc
+from pybullet_utils import bullet_client as bc
+# import bullet_client as bc
 import gym
 from gym import spaces
 from gym.utils import seeding
@@ -21,7 +21,6 @@ class LanderGymEnv(gym.Env):
   
   def __init__(self, urdfRoot = pybullet_data.getDataPath(), actionRepeat=50, isEnableSelfCollision=True, isDiscrete=False, renders=True):
   
-    print("init")
     self._timeStep = 0.01
     self._urdfRoot = urdfRoot
     #self._cubeStartPos = cubeStartPos
