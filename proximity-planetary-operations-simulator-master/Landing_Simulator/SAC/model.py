@@ -2,12 +2,12 @@ import torch
 import torch.nn as nn
 from torch.distributions import Normal
 import torch.optim as optim
+import numpy as np
 
 class NetworksManager(nn.Module):
-  def __init__(self, state_dim, action_dim, hidden_dim):
-    super(ValueNetwork, self).__init__()
-    self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print('Device set to : ' + str(torch.cuda.get_device_name(self.device)))
+  def __init__(self, device, state_dim, action_dim, hidden_dim):
+    super(NetworksManager, self).__init__()
+    self.device = device
 
     self.value_net = ValueNetwork( self.device, state_dim, hidden_dim).to(self.device)
     self.target_value_net = ValueNetwork( self.device, state_dim, hidden_dim).to(self.device)
@@ -32,18 +32,18 @@ class NetworksManager(nn.Module):
     self.policy_optimizer = optim.Adam(self.policy_net.parameters(), lr=policy_lr)
   
   def save(self, filename):
-    torch.save(self.value_net.state_dict(), filename + "_value_net")
-    torch.save(self.target_value_net.state_dict(), filename + "_target_value_net")
-    torch.save(self.soft_q_net1.state_dict(), filename + "_soft_q_net1")
-    torch.save(self.soft_q_net2.state_dict(), filename + "_soft_q_net2")
-    torch.save(self.policy_net.state_dict(), filename + "_policy_net")
+    torch.save(self.value_net.state_dict(), filename + "_value_net.pt")
+    torch.save(self.target_value_net.state_dict(), filename + "_target_value_net.pt")
+    torch.save(self.soft_q_net1.state_dict(), filename + "_soft_q_net1.pt")
+    torch.save(self.soft_q_net2.state_dict(), filename + "_soft_q_net2.pt")
+    torch.save(self.policy_net.state_dict(), filename + "_policy_net.pt")
   
   def load(self, filename):
-    self.value_net.load_state_dict(torch.load(filename + "_value_net"))
-    self.target_value_net.load_state_dict(torch.load(filename + "_target_value_net"))
-    self.soft_q_net1.load_state_dict(torch.load(filename + "_soft_q_net1"))
-    self.soft_q_net2.load_state_dict(torch.load(filename + "_soft_q_net2"))
-    self.policy_net.load_state_dict(torch.load(filename + "_policy_net"))
+    self.value_net.load_state_dict(torch.load(filename + "_value_net.pt"))
+    self.target_value_net.load_state_dict(torch.load(filename + "_target_value_net.pt"))
+    self.soft_q_net1.load_state_dict(torch.load(filename + "_soft_q_net1.pt"))
+    self.soft_q_net2.load_state_dict(torch.load(filename + "_soft_q_net2.pt"))
+    self.policy_net.load_state_dict(torch.load(filename + "_policy_net.pt"))
     
   def update(self, replay_buffer, batch_size, gamma=0.99, soft_tau=1e-2):
     state, action, reward, next_state, done = replay_buffer.sample(batch_size)
