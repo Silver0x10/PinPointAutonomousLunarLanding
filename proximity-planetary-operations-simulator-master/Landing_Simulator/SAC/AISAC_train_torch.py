@@ -87,7 +87,7 @@ def main():
   # steps_list = []
 
 
-  agents = [AsyncAgent(i, global_episode_counter,delay_local_buffer,manager_shared_var,hidden_dim,filename,file_lock) for i in range(n_async_processes)]
+  agents = [AsyncAgent(i, global_episode_counter,delay_local_buffer,manager_shared_var,hidden_dim,filename,file_lock,max_episodes) for i in range(n_async_processes)]
 
   [agent.start() for agent in agents]
   print("All the ",n_async_processes," Agents are ready!")
