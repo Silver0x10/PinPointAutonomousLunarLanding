@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import gym #with pip installation already imports also box2d
 import math
 import random
+from collections import deque
 
 import sys 
 sys.path.append('.')
@@ -59,14 +60,14 @@ def main():
   async_device = torch.device("cpu")
   
   # Define Training Hyperparameters:
-  replay_buffer_size=100000
-  max_steps = 100
+  replay_buffer_size = 1000
+  max_steps = 10000
   frame_idx = 0
-  max_episodes = 10
-  rewards = [] 
+  max_episodes = 10000
+  episode_rewards = deque(maxlen=100)
   avg_reward_list = []
-  batch_size = 16 # 128
-  n_async_processes = 2
+  batch_size = 128
+  n_async_processes = 6
   network_hidden_dim = 256
   
   network = NetworksManager(device, state_dim, action_dim, network_hidden_dim)
@@ -97,7 +98,7 @@ def main():
     with global_episode_counter.get_lock():
       global_episode_counter.value += 1
       episode = global_episode_counter.value
-    print('Agent MAIN\tEpisode', episode, 'starting at frame_idx = ', frame_idx)
+    print(f'''Agent MAIN\tEpisode {episode} starting at frame_idx {frame_idx}''')
     step = 0
     while step <= max_steps:
       if frame_idx > 50:
@@ -106,8 +107,6 @@ def main():
       else: 
         action = env.action_space.sample()
         next_state, reward, done, _ = env.step(action)
-      
-      print('Agent MAIN\tEpisode', episode, "-> reward", reward, 'at step', step)
 
       local_buffer.append( [state, action, reward, next_state, done] )
       replay_buffer.set_latest_transition(local_buffer[-1])
@@ -115,20 +114,23 @@ def main():
       state = next_state
       episode_reward += reward
       frame_idx += 1
-      step+=1
-      
-      if len(replay_buffer) >= batch_size:#*2 # update the networks
+      step += 1
+      if len(replay_buffer) >= batch_size:
         print("Update the network weights...", 'Replay_buffer size = ', len(replay_buffer))
         network.update(replay_buffer, batch_size)
-        # TODO check if it does not cause problems to the loading
         with weights_file_lock: network.save(weights_filename)
       
       if global_episode_counter.value - last_plot_episode > 1000:
-        plot(frame_idx, rewards)
+        plot(frame_idx, episode_rewards)
         last_plot_episode = global_episode_counter.value
         
       if done:
         break
+      
+    episode_rewards.append(episode_reward)
+    avg_reward = np.mean(episode_rewards)
+    avg_reward_list.append(avg_reward)
+    print(f'''Agent MAIN\tEpisode {episode} FINISHED after {step} steps ==> Episode Reward: {episode_reward:3f} / Avg Reward: {avg_reward:.3f}''')
     
     for transition in local_buffer: transition.append(episode_reward) # push the cumulative reward to the replay buffer
     # maybe the push here, better to do it not every episode so that delay_local_buffer is not always taken by some agent
@@ -138,19 +140,14 @@ def main():
       for transition in local_buffer: delayed_buffer.append(tuple(transition)) # push the transitions to the delay_local_buffer
     local_buffer = []
     
-    rewards.append(episode_reward)
-    avg_reward = np.mean(rewards[-100:])
-    print("Main Agent -> Frame * {} * Avg Reward is ==> {}".format(frame_idx, avg_reward))
-    avg_reward_list.append(avg_reward)
-    
     # The idea is to delay the infusion  of new experience to the replay_buffer 
     # avoiding overfitting so that the network will be trained more using old experience
     if global_episode_counter.value - last_infusion_episode > 2:
-      print("Main Agent is updating the shared replay buffer...")
       last_infusion_episode = global_episode_counter.value
       with delayed_buffer_lock:
         for transition in delayed_buffer: replay_buffer.push_transition(*transition)
-        delayed_buffer = manager_shared_data.list()
+        delayed_buffer[:] = [] # TODO check if this is the right way to clear the list
+      print(f'''Replay buffer updated ==> new len: {len(replay_buffer)}''')
         
   with weights_file_lock: network.save(weights_filename)
   [agent.join() for agent in agents] # wait for all the agents to finish
