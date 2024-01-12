@@ -182,8 +182,7 @@ async def main():
       #
     #asyncio.run()
     
-  [agent.terminate() for agent in agents] # wait for all the agents to finish
-
+  [agent.terminate() for agent in agents] # delete all the agents when Main Agent finished
   delayed_buffer[:] = []
   replay_buffer.clear_buffer()
   # Delete the model to free up memory
