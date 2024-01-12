@@ -5,6 +5,7 @@ from lander_gym_env_with_gusts import LanderGymEnv
 import numpy as np
 from collections import deque
 import setproctitle
+import gymnasium as gym
 
 
 
@@ -27,7 +28,7 @@ import setproctitle
 
 
 class AsyncAgent(torch.multiprocessing.Process):
-  def __init__(self, id, device, global_episode_counter, delayed_buffer, delayed_buffer_lock, hidden_dim, weights_filename, max_episodes, state_dim, action_dim,rwlock):
+  def __init__(self, id, device, global_episode_counter, delayed_buffer, delayed_buffer_lock, hidden_dim, weights_folder, max_episodes, env_type, state_dim, action_dim,rwlock):
     super(AsyncAgent, self).__init__()
     print(id)
     self.id = id
@@ -40,9 +41,10 @@ class AsyncAgent(torch.multiprocessing.Process):
     self.hidden_dim = hidden_dim
     self.batch_size = 0
     self.max_episodes = max_episodes
+    self.env_type = env_type
 
     self.env = None
-    self.weights_filename = weights_filename
+    self.weights_folder = weights_folder
 
 
     self.state_dim = state_dim
@@ -55,13 +57,13 @@ class AsyncAgent(torch.multiprocessing.Process):
     frame_idx = 0
     max_steps= 300
     local_episode = 0
-    self.network.load(self.weights_filename)
+    self.network.load(self.weights_folder)
     #episode_rewards = deque(maxlen=100)
     #avg_reward_list = []
     while self.global_episode_counter.value < self.max_episodes:
       if local_episode % 10 == 0:
-        self.network.load(self.weights_filename)
-      state = self.env.reset()
+        self.network.load(self.weights_folder)
+      state = self.env.reset()[0]
       episode_reward = 0
       with self.global_episode_counter.get_lock():
         self.global_episode_counter.value += 1
@@ -71,10 +73,10 @@ class AsyncAgent(torch.multiprocessing.Process):
       while step <= max_steps:
         if frame_idx > 50:
           action = self.network.policy_net.get_action(state).detach()
-          next_state, reward, done, _ = self.env.step(action.numpy())
+          next_state, reward, done, *_ = self.env.step(action.numpy())
         else: 
           action = self.env.action_space.sample()
-          next_state, reward, done, _ = self.env.step(action)
+          next_state, reward, done, *_ = self.env.step(action)
 
         self.local_buffer.append( [state, action, reward, next_state, done] )
 
@@ -106,7 +108,13 @@ class AsyncAgent(torch.multiprocessing.Process):
     # Since we need first create the process and then "connect" it to the client of Landergym
     # We need to initialize it here ( when the process is created ) and not in the constructor
 
-    if self.env == None: self.env = LanderGymEnv(renders=False)
+    if self.env == None:
+      if self.env_type == '3d':
+        self.env = LanderGymEnv(renders=False)
+      else:  
+        self.env = gym.make("LunarLander-v2", continuous = True, gravity = -10.0, enable_wind = False, wind_power = 15.0, turbulence_power = 1.5)
+    
+    
     print('OK! Environment of agent', self.id, 'is configurated! ---------------------------------------')
     self.rollout()
     #with self.global_episode_counter.get_lock():

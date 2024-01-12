@@ -11,16 +11,30 @@ import concurrent.futures
 from rwlock import RWLock
 import numpy as np
 import matplotlib.pyplot as plt
-import gym #with pip installation already imports also box2d
+import gymnasium as gym
 import math
 import random
 from collections import deque
 from fasteners import InterProcessLock
 import setproctitle
 from time import sleep
+import sys 
+import os
+import wandb
+
+# Hyperparameters:
+MAX_FRAMES = 10000
+MAX_STEPS = 500
+MAX_EPISODES = 2000
+WEIGHTS_FOLDER = 'AISAC_weights'
+LOAD_WEIGHTS = False
+ENV = '2d' # '2d' or '3d
+RENDER = False 
+REPLAY_BUFFER_SIZE=100000
+BATCH_SIZE = 128
+WANDB_LOG = True
 
 setproctitle.setproctitle("AutonomousLandingProcess")
-import sys 
 sys.path.append('.')
 sys.path.append('..')
 
@@ -51,10 +65,28 @@ async def main():
   torch.manual_seed(42)
   torch.multiprocessing.set_start_method('spawn')
   loop = asyncio.get_running_loop()
-
   
-  env = LanderGymEnv(renders=False)
-  #env = NormalizedActions(env)  
+  if WANDB_LOG:
+    wandb.login(key='efa11006b3b5487ccfc221897831ea5ef2ff518f')
+    wandb.init(project='lunar_lander', 
+              name='lander-'+ENV+'-aisac',
+              config={
+                  'env': ENV,
+                  'max_frames': MAX_FRAMES,
+                  'max_steps': MAX_STEPS,
+                  'replay_buffer_size': REPLAY_BUFFER_SIZE,
+                  'batch_size': BATCH_SIZE,
+                  'load_weights': LOAD_WEIGHTS
+                }
+              )
+
+  if ENV == '3d':
+    env = LanderGymEnv(renders=RENDER)
+    #env = NormalizedActions(env) 
+  else:  
+    render_mode = 'human' if RENDER else None
+    env = gym.make("LunarLander-v2", render_mode=render_mode, continuous = True, gravity = -10.0, enable_wind = False, wind_power = 15.0, turbulence_power = 1.5)
+
   print('OK! Environment configuration successful!')
   state_dim = env.observation_space.shape[0]
   print("Size of state space -> {}".format(state_dim))
@@ -72,10 +104,8 @@ async def main():
   
   # Define Training Hyperparameters:
 
-  replay_buffer_size = 10000
-  max_steps = 500
   frame_idx = 0
-  max_episodes = 2000
+  
   episode_rewards = deque(maxlen=100)
   avg_reward_list = []
   batch_size = 128
@@ -85,10 +115,13 @@ async def main():
   rwlock = RWLock()
   #weights_file_lock = InterProcessLock("weights/AISAC_weights/")#manager_shared_data.Lock() # Shared lock for file access
   network = NetworksManager(device, state_dim, action_dim, network_hidden_dim,rwlock)
-  weights_filename = "weights/AISAC_weights/"
-  #network.load(.weights_filename)
-  network._save_sync(weights_filename)
-  replay_buffer = ReplayBuffer(replay_buffer_size)
+  
+  if not os.path.exists(WEIGHTS_FOLDER):
+    os.makedirs(WEIGHTS_FOLDER)
+  if LOAD_WEIGHTS: network.load(WEIGHTS_FOLDER)
+  network._save_sync(WEIGHTS_FOLDER)
+  
+  replay_buffer = ReplayBuffer(REPLAY_BUFFER_SIZE)
   local_buffer = [] # cumulate the transitions here and at the end of each episode push the cumulative reward (rho) to replay_buffer
   last_infusion_episode = 0
   last_plot_episode = 0
@@ -102,7 +135,7 @@ async def main():
   delayed_buffer_lock = manager_shared_data.Lock()
   
   #file_lock = 
-  agents = [AsyncAgent(i, async_device, global_episode_counter, delayed_buffer, delayed_buffer_lock, network_hidden_dim, weights_filename, max_episodes, state_dim, action_dim,rwlock) for i in range(n_async_processes)]
+  agents = [AsyncAgent(i, async_device, global_episode_counter, delayed_buffer, delayed_buffer_lock, network_hidden_dim, WEIGHTS_FOLDER, MAX_EPISODES, ENV, state_dim, action_dim, rwlock) for i in range(n_async_processes)]
   
   [agent.start() for agent in agents]
   print("All the ",n_async_processes," Agents are ready!")
@@ -110,21 +143,21 @@ async def main():
  
   #Train with episodes:
   episode = None
-  while global_episode_counter.value < max_episodes:
-    state = env.reset()
+  while global_episode_counter.value < MAX_EPISODES:
+    state = env.reset()[0]
     episode_reward = 0
     with global_episode_counter.get_lock():
       global_episode_counter.value += 1
       episode = global_episode_counter.value
     print(f'''Agent MAIN\tEpisode {episode} starting at frame_idx {frame_idx}''')
     step = 0
-    while step <= max_steps:
+    while step <= MAX_STEPS:
       if frame_idx > 50:
         action = network.policy_net.get_action(state).detach()
-        next_state, reward, done, _ = env.step(action.numpy())
+        next_state, reward, done, *_ = env.step(action.numpy())
       else: 
         action = env.action_space.sample()
-        next_state, reward, done, _ = env.step(action)
+        next_state, reward, done, *_ = env.step(action)
 
       local_buffer.append( [state, action, reward, next_state, done] )
       replay_buffer.set_latest_transition(local_buffer[-1])
@@ -137,19 +170,14 @@ async def main():
         print("Update the network weights...", 'Replay_buffer size = ', len(replay_buffer))
         network.update(replay_buffer, batch_size)
           #await loop.run_in_executor(pool, network.save_async,weights_filename)
-
-
       
-      #if global_episode_counter.value - last_plot_episode > 1000:
-        #plot(frame_idx, episode_rewards)
-        #last_plot_episode = global_episode_counter.value
-        
       if done:
         break
       
     episode_rewards.append(episode_reward)
     avg_reward = np.mean(episode_rewards)
     avg_reward_list.append(avg_reward)
+    if WANDB_LOG: wandb.log({"episode": episode, "frame": frame_idx, "episode_reward": episode_reward, "avg_reward": avg_reward})
     print(f'''Agent MAIN\tEpisode {episode} FINISHED after {step} steps ==> Episode Reward: {episode_reward:3f} / Avg Reward: {avg_reward:.3f}''')
     
     for transition in local_buffer: transition.append(episode_reward) # push the cumulative reward to the replay buffer
@@ -176,7 +204,7 @@ async def main():
     #is it fine to use this inside a
     with concurrent.futures.ThreadPoolExecutor() as pool:
       print('2')
-      pool.submit(network.save_async,weights_filename)
+      pool.submit(network.save_async, WEIGHTS_FOLDER)
       #await loop.run_in_executor(pool,network.save_async,weights_filename)
       print('3')
       #

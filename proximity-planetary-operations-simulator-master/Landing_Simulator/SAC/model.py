@@ -33,45 +33,45 @@ class NetworksManager(nn.Module):
     self.soft_q_optimizer2 = optim.Adam(self.soft_q_net2.parameters(), lr=soft_q_lr)
     self.policy_optimizer = optim.Adam(self.policy_net.parameters(), lr=policy_lr)
   
-  def _save_sync(self, filename):
-    torch.save(self.value_net.state_dict(), filename + "_value_net.pt")
-    torch.save(self.target_value_net.state_dict(), filename + "_target_value_net.pt")
-    torch.save(self.soft_q_net1.state_dict(), filename + "_soft_q_net1.pt")
-    torch.save(self.soft_q_net2.state_dict(), filename + "_soft_q_net2.pt")
-    torch.save(self.policy_net.state_dict(), filename + "_policy_net.pt")
+  def _save_sync(self, folder_path):
+    torch.save(self.value_net.state_dict(), folder_path + "/weights_value_net.pt")
+    torch.save(self.target_value_net.state_dict(), folder_path + "/weights_target_value_net.pt")
+    torch.save(self.soft_q_net1.state_dict(), folder_path + "/weights_soft_q_net1.pt")
+    torch.save(self.soft_q_net2.state_dict(), folder_path + "/weights_soft_q_net2.pt")
+    torch.save(self.policy_net.state_dict(), folder_path + "/weights_policy_net.pt")
 
-  def save_async(self, filename):
+  def save_async(self, folder_path):
     # Acquire an exclusive lock on the file 
     # Open the file to get a file descriptor
 
         self.rwlock.writer_lock.acquire()
         print("saving weights....")
-        self._save_sync(filename)
+        self._save_sync(folder_path)
         self.rwlock.writer_lock.release()
         print("finished saving weights....")
           #self.rwlock.release()
 
           
-  def load(self, filename):
+  def load(self, folder_path):
         # Open the file to get a file descriptor
         print("trying to load...")
         self.rwlock.reader_lock.acquire()
         print("loading weights....")
-        self.load_weights(filename)
+        self.load_weights(folder_path)
         self.rwlock.reader_lock.release()
         print("finished loading weights....")
             #self.rwlock.release()
 
 
 
-  def load_weights(self, filename):
+  def load_weights(self, folder_path):
     try:
       
-      self.value_net.load_state_dict(torch.load(filename + "_value_net.pt"))
-      self.target_value_net.load_state_dict(torch.load(filename + "_target_value_net.pt"))
-      self.soft_q_net1.load_state_dict(torch.load(filename + "_soft_q_net1.pt"))
-      self.soft_q_net2.load_state_dict(torch.load(filename + "_soft_q_net2.pt"))
-      self.policy_net.load_state_dict(torch.load(filename + "_policy_net.pt"))
+      self.value_net.load_state_dict(torch.load(folder_path + "/weights_value_net.pt"))
+      self.target_value_net.load_state_dict(torch.load(folder_path + "/weights_target_value_net.pt"))
+      self.soft_q_net1.load_state_dict(torch.load(folder_path + "/weights_soft_q_net1.pt"))
+      self.soft_q_net2.load_state_dict(torch.load(folder_path + "/weights_soft_q_net2.pt"))
+      self.policy_net.load_state_dict(torch.load(folder_path + "/weights_policy_net.pt"))
     except Exception as e:
       print("WARNING: Not able to load weights of the network to the subprocess -------------------------------------------")
       print(e)

@@ -19,3 +19,4 @@ six #==1.16.0
 torch # ==1.7.1
 typing-extensions #==3.10.0.2
 wandb
+fasteners
