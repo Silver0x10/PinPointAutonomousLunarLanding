@@ -1,3 +1,5 @@
+import asyncio
+import fcntl
 import torch
 import torch.nn as nn
 from torch.distributions import Normal
@@ -5,10 +7,10 @@ import torch.optim as optim
 import numpy as np
 
 class NetworksManager(nn.Module):
-  def __init__(self, device, state_dim, action_dim, hidden_dim):
+  def __init__(self, device, state_dim, action_dim, hidden_dim,rwlock ):
     super(NetworksManager, self).__init__()
     self.device = device
-
+    self.rwlock = rwlock
     self.value_net = ValueNetwork( self.device, state_dim, hidden_dim).to(self.device)
     self.target_value_net = ValueNetwork( self.device, state_dim, hidden_dim).to(self.device)
     self.soft_q_net1 = SoftQNetwork( self.device, state_dim, action_dim, hidden_dim).to(self.device)
@@ -31,19 +33,48 @@ class NetworksManager(nn.Module):
     self.soft_q_optimizer2 = optim.Adam(self.soft_q_net2.parameters(), lr=soft_q_lr)
     self.policy_optimizer = optim.Adam(self.policy_net.parameters(), lr=policy_lr)
   
-  def save(self, filename):
+  def _save_sync(self, filename):
     torch.save(self.value_net.state_dict(), filename + "_value_net.pt")
     torch.save(self.target_value_net.state_dict(), filename + "_target_value_net.pt")
     torch.save(self.soft_q_net1.state_dict(), filename + "_soft_q_net1.pt")
     torch.save(self.soft_q_net2.state_dict(), filename + "_soft_q_net2.pt")
     torch.save(self.policy_net.state_dict(), filename + "_policy_net.pt")
-  
+
+  def save_async(self, filename):
+    # Acquire an exclusive lock on the file 
+    # Open the file to get a file descriptor
+
+        self.rwlock.writer_lock.acquire()
+        print("saving weights....")
+        self._save_sync(filename)
+        self.rwlock.writer_lock.release()
+        print("finished saving weights....")
+          #self.rwlock.release()
+
+          
   def load(self, filename):
-    self.value_net.load_state_dict(torch.load(filename + "_value_net.pt"))
-    self.target_value_net.load_state_dict(torch.load(filename + "_target_value_net.pt"))
-    self.soft_q_net1.load_state_dict(torch.load(filename + "_soft_q_net1.pt"))
-    self.soft_q_net2.load_state_dict(torch.load(filename + "_soft_q_net2.pt"))
-    self.policy_net.load_state_dict(torch.load(filename + "_policy_net.pt"))
+        # Open the file to get a file descriptor
+        print("trying to load...")
+        self.rwlock.reader_lock.acquire()
+        print("loading weights....")
+        self.load_weights(filename)
+        self.rwlock.reader_lock.release()
+        print("finished loading weights....")
+            #self.rwlock.release()
+
+
+
+  def load_weights(self, filename):
+    try:
+      
+      self.value_net.load_state_dict(torch.load(filename + "_value_net.pt"))
+      self.target_value_net.load_state_dict(torch.load(filename + "_target_value_net.pt"))
+      self.soft_q_net1.load_state_dict(torch.load(filename + "_soft_q_net1.pt"))
+      self.soft_q_net2.load_state_dict(torch.load(filename + "_soft_q_net2.pt"))
+      self.policy_net.load_state_dict(torch.load(filename + "_policy_net.pt"))
+    except Exception as e:
+      print("WARNING: Not able to load weights of the network to the subprocess -------------------------------------------")
+      print(e)
     
   def update(self, replay_buffer, batch_size, gamma=0.99, soft_tau=1e-2):
     state, action, reward, next_state, done = replay_buffer.sample(batch_size)

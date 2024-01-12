@@ -1,17 +1,25 @@
+import asyncio
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.distributions import Normal
 from torch.multiprocessing import Manager
 import os
+import fcntl
+import concurrent.futures
 
+from rwlock import RWLock
 import numpy as np
 import matplotlib.pyplot as plt
 import gym #with pip installation already imports also box2d
 import math
 import random
 from collections import deque
+from fasteners import InterProcessLock
+import setproctitle
+from time import sleep
 
+setproctitle.setproctitle("AutonomousLandingProcess")
 import sys 
 sys.path.append('.')
 sys.path.append('..')
@@ -38,9 +46,12 @@ def plot(frame_idx, rewards):
   
 # Initialize and Run executable:
 
-def main():
+async def main():
+  print("The Main Process PID is: ", os.getpid())
   torch.manual_seed(42)
   torch.multiprocessing.set_start_method('spawn')
+  loop = asyncio.get_running_loop()
+
   
   env = LanderGymEnv(renders=False)
   #env = NormalizedActions(env)  
@@ -54,42 +65,49 @@ def main():
   print("max value of action -> {}".format(upper_bound))
   print("min value of action -> {}".format(lower_bound))
   
-  device = torch.device("cpu")
-  # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-  # print('Device set to : ' + str(torch.cuda.get_device_name(device)))
+  #device = torch.device("cpu")
+  device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+  print('Device set to : ' + str(torch.cuda.get_device_name(device)))
   async_device = torch.device("cpu")
   
   # Define Training Hyperparameters:
-  replay_buffer_size = 1000
-  max_steps = 10000
+
+  replay_buffer_size = 10000
+  max_steps = 500
   frame_idx = 0
-  max_episodes = 10000
+  max_episodes = 2000
   episode_rewards = deque(maxlen=100)
   avg_reward_list = []
   batch_size = 128
-  n_async_processes = 6
+  n_async_processes = 2
+
   network_hidden_dim = 256
-  
-  network = NetworksManager(device, state_dim, action_dim, network_hidden_dim)
-  weights_filename = "weights/AISAC_weights"
-  network.save(weights_filename)
+  rwlock = RWLock()
+  #weights_file_lock = InterProcessLock("weights/AISAC_weights/")#manager_shared_data.Lock() # Shared lock for file access
+  network = NetworksManager(device, state_dim, action_dim, network_hidden_dim,rwlock)
+  weights_filename = "weights/AISAC_weights/"
+  #network.load(.weights_filename)
+  network._save_sync(weights_filename)
   replay_buffer = ReplayBuffer(replay_buffer_size)
   local_buffer = [] # cumulate the transitions here and at the end of each episode push the cumulative reward (rho) to replay_buffer
   last_infusion_episode = 0
   last_plot_episode = 0
-  
+  #TODO: variaable that says if the network is updated. if yes, agents will update theirs network, otherwise its useless
+
+      
   # Define shared stuff
   manager_shared_data = Manager()
   global_episode_counter = torch.multiprocessing.Value('i', 0)
   delayed_buffer = manager_shared_data.list()
   delayed_buffer_lock = manager_shared_data.Lock()
-  weights_file_lock = manager_shared_data.Lock() # Shared lock for file access
-
-  agents = [AsyncAgent(i, async_device, global_episode_counter, delayed_buffer, delayed_buffer_lock, network_hidden_dim, weights_filename, weights_file_lock, max_episodes, state_dim, action_dim) for i in range(n_async_processes)]
+  
+  #file_lock = 
+  agents = [AsyncAgent(i, async_device, global_episode_counter, delayed_buffer, delayed_buffer_lock, network_hidden_dim, weights_filename, max_episodes, state_dim, action_dim,rwlock) for i in range(n_async_processes)]
   
   [agent.start() for agent in agents]
   print("All the ",n_async_processes," Agents are ready!")
 
+ 
   #Train with episodes:
   episode = None
   while global_episode_counter.value < max_episodes:
@@ -118,11 +136,13 @@ def main():
       if len(replay_buffer) >= batch_size:
         print("Update the network weights...", 'Replay_buffer size = ', len(replay_buffer))
         network.update(replay_buffer, batch_size)
-        with weights_file_lock: network.save(weights_filename)
+          #await loop.run_in_executor(pool, network.save_async,weights_filename)
+
+
       
-      if global_episode_counter.value - last_plot_episode > 1000:
-        plot(frame_idx, episode_rewards)
-        last_plot_episode = global_episode_counter.value
+      #if global_episode_counter.value - last_plot_episode > 1000:
+        #plot(frame_idx, episode_rewards)
+        #last_plot_episode = global_episode_counter.value
         
       if done:
         break
@@ -135,7 +155,7 @@ def main():
     for transition in local_buffer: transition.append(episode_reward) # push the cumulative reward to the replay buffer
     # maybe the push here, better to do it not every episode so that delay_local_buffer is not always taken by some agent
     # having an overall improvement in performance since we do less updates (and so less get_lock() and less waiting)
-
+    print('1')
     with delayed_buffer_lock: 
       for transition in local_buffer: delayed_buffer.append(tuple(transition)) # push the transitions to the delay_local_buffer
     local_buffer = []
@@ -143,20 +163,45 @@ def main():
     # The idea is to delay the infusion  of new experience to the replay_buffer 
     # avoiding overfitting so that the network will be trained more using old experience
     if global_episode_counter.value - last_infusion_episode > 2:
+      print("Main Agent is updating the shared replay buffer...")
+
       last_infusion_episode = global_episode_counter.value
       with delayed_buffer_lock:
         for transition in delayed_buffer: replay_buffer.push_transition(*transition)
         delayed_buffer[:] = [] # TODO check if this is the right way to clear the list
       print(f'''Replay buffer updated ==> new len: {len(replay_buffer)}''')
-        
-  with weights_file_lock: network.save(weights_filename)
-  [agent.join() for agent in agents] # wait for all the agents to finish
-      
-  plt.plot(avg_reward_list)
-  plt.xlabel("Episodes")
-  plt.ylabel("Avg. Episodic Reward")
-  plt.show()
+
+    # Run in a custom thread pool:
+    
+    #is it fine to use this inside a
+    with concurrent.futures.ThreadPoolExecutor() as pool:
+      print('2')
+      pool.submit(network.save_async,weights_filename)
+      #await loop.run_in_executor(pool,network.save_async,weights_filename)
+      print('3')
+      #
+    #asyncio.run()
+    
+  [agent.terminate() for agent in agents] # wait for all the agents to finish
+
+  delayed_buffer[:] = []
+  replay_buffer.clear_buffer()
+  # Delete the model to free up memory
+  del network
+  # Release GPU memory not in use by PyTorch
+  torch.cuda.empty_cache()
+
+  sleep(5)
+  num_episodes = list(range(1,len(avg_reward_list)+1))
+  print(len(avg_reward_list))
+  print(avg_reward_list)
+  plt.plot(num_episodes, avg_reward_list, marker='o', linestyle='-')
+  plt.title('Average Reward over Episodes')
+  plt.xlabel('Episodes')
+  plt.ylabel('Average Reward')
+  # Save the plot as a PNG file
   plt.savefig('plot.png')
+
     
 if __name__ == '__main__':
-  main()
+  asyncio.run(main())

@@ -112,9 +112,12 @@ class ReplayBuffer:
     
     
   def set_latest_transition(self, transition):
-    # Create a new tuple by concatenating the existing tuple with the new element
     # where None is the cumulative reward
     self.latest_transition_on_policy = tuple(transition) + (None,)
 
   def __len__(self):
     return len(self.buffer)
+
+  def clear_buffer(self):
+    self.buffer = []
+    self.position = 0

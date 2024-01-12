@@ -4,12 +4,35 @@ from lander_gym_env_with_gusts import LanderGymEnv
 #from torch.multiprocessing import Lock
 import numpy as np
 from collections import deque
+import setproctitle
+
+
+
+# Multiple threads are subject to the global interpreter lock (GIL), whereas multiple child processes are not subject to the GIL.
+
+# The GIL is a programming pattern in the reference Python interpreter (e.g. CPython, the version of Python you download from python.org).
+
+# It is a lock in the sense that it uses synchronization to ensure that only one thread of execution can execute instructions at a time within a Python process.
+
+# This means that although we may have multiple threads in our program, only one thread can execute at a time.
+
+# The GIL is used within each Python process, but not across processes. So this is why we are using process for each agent and thread to do only I/O bound activities.
+
+
+
+
+
+
+
 
 
 class AsyncAgent(torch.multiprocessing.Process):
-  def __init__(self, id, device, global_episode_counter, delayed_buffer, delayed_buffer_lock, hidden_dim, weights_filename, weights_file_lock, max_episodes, state_dim, action_dim):
+  def __init__(self, id, device, global_episode_counter, delayed_buffer, delayed_buffer_lock, hidden_dim, weights_filename, max_episodes, state_dim, action_dim,rwlock):
     super(AsyncAgent, self).__init__()
+    print(id)
     self.id = id
+    #print(rwlock)
+    self.rwlock = rwlock
     self.global_episode_counter = global_episode_counter
     self.local_buffer = []
     self.delayed_buffer = delayed_buffer
@@ -20,23 +43,24 @@ class AsyncAgent(torch.multiprocessing.Process):
 
     self.env = None
     self.weights_filename = weights_filename
-    # Create lock for file access
-    self.weights_file_lock = weights_file_lock
+
 
     self.state_dim = state_dim
     self.action_dim = action_dim
-    self.network = NetworksManager(device, self.state_dim, self.action_dim, self.hidden_dim)
+    self.network = NetworksManager(device, self.state_dim, self.action_dim, self.hidden_dim,rwlock)
+    print(self.id)
 
   def rollout(self):
     #TODO: every Sub-Agent uses the same hyperparameter of the main Agent?
     frame_idx = 0
     max_steps= 300
-    episode = None
-    episode_rewards = deque(maxlen=100)
-    avg_reward_list = []
-
+    local_episode = 0
+    self.network.load(self.weights_filename)
+    #episode_rewards = deque(maxlen=100)
+    #avg_reward_list = []
     while self.global_episode_counter.value < self.max_episodes:
-      with self.weights_file_lock: self.network.load(self.weights_filename)
+      if local_episode % 10 == 0:
+        self.network.load(self.weights_filename)
       state = self.env.reset()
       episode_reward = 0
       with self.global_episode_counter.get_lock():
@@ -61,29 +85,31 @@ class AsyncAgent(torch.multiprocessing.Process):
 
         if done:
           break
-      
-      episode_rewards.append(episode_reward)
-      avg_reward = np.mean(episode_rewards)
-      avg_reward_list.append(avg_reward)
-      print(f'''Agent {self.id}\tEpisode {episode} FINISHED after {step} steps ==> Episode Reward: {episode_reward:3f} / Avg Reward: {avg_reward:.3f}''')
+      local_episode +=1
+      #episode_rewards.append(episode_reward)
+      #avg_reward = np.mean(episode_rewards)
+      #avg_reward_list.append(avg_reward)
+      #print(f'''Agent {self.id}\tEpisode {episode} FINISHED after {step} steps ==> Episode Reward: {episode_reward:3f} / Avg Reward: {avg_reward:.3f}''')
       
       for transition in self.local_buffer: transition.append(episode_reward) # push the cumulative reward to the replay buffer
 
       with self.delayed_buffer_lock:
         for transition in self.local_buffer: self.delayed_buffer.append(tuple(transition)) # The access to the list is protected by the Manager
       self.local_buffer = []
+      
 
   
   def run(self):
     print('Starting agent', self.id)
+    #give a name to the process
+    setproctitle.setproctitle("AutonomousLandingSubProcess"+str(self.id))
+    # Since we need first create the process and then "connect" it to the client of Landergym
+    # We need to initialize it here ( when the process is created ) and not in the constructor
+
     if self.env == None: self.env = LanderGymEnv(renders=False)
-    print('OK! Environment of agent', self.id, 'is configurated!')
+    print('OK! Environment of agent', self.id, 'is configurated! ---------------------------------------')
     self.rollout()
     #with self.global_episode_counter.get_lock():
     #  self.global_episode_counter.value += 1
     print('Agent', self.id, 'finished')
 
-
-  def load_model(self):
-    # with self.file_lock.get_lock():
-    self.network.load_state_dict(torch.load(self.filename))
