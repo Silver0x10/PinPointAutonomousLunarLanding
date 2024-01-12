@@ -28,6 +28,7 @@ ENV = '2d' # '2d' or '3d
 RENDER = False 
 REPLAY_BUFFER_SIZE=100000
 BATCH_SIZE = 4
+WANDB_LOG = True
 
 #Load simplified environment - no atmospheric disturbances:
 #import lander_gym_env
@@ -93,18 +94,19 @@ def update(batch_size, gamma=0.99, soft_tau=1e-2):
 
 if __name__ == '__main__':
 
-  wandb.login(key='efa11006b3b5487ccfc221897831ea5ef2ff518f')
-  wandb.init(project='lunar_lander', 
-             name='lander-'+ENV+'-isac',
-             config={
-                 'env': ENV,
-                 'max_frames': MAX_FRAMES,
-                 'max_steps': MAX_STEPS,
-                 'replay_buffer_size': REPLAY_BUFFER_SIZE,
-                 'batch_size': BATCH_SIZE,
-                 'load_weights': LOAD_WEIGHTS
-              }
-            )
+  if WANDB_LOG:
+    wandb.login(key='efa11006b3b5487ccfc221897831ea5ef2ff518f')
+    wandb.init(project='lunar_lander', 
+              name='lander-'+ENV+'-isac',
+              config={
+                  'env': ENV,
+                  'max_frames': MAX_FRAMES,
+                  'max_steps': MAX_STEPS,
+                  'replay_buffer_size': REPLAY_BUFFER_SIZE,
+                  'batch_size': BATCH_SIZE,
+                  'load_weights': LOAD_WEIGHTS
+                }
+              )
   
   if ENV == '3d':
     env = LanderGymEnv(renders=RENDER)
@@ -211,7 +213,7 @@ if __name__ == '__main__':
 
     rewards.append(episode_reward)
     avg_reward = np.mean(rewards[-100:])
-    wandb.log({"episode": episode, "frame": frame_idx, "episode_reward": episode_reward, "avg_reward": avg_reward})
+    if WANDB_LOG: wandb.log({"episode": episode, "frame": frame_idx, "episode_reward": episode_reward, "avg_reward": avg_reward})
     print("Episode {} * Frame * {} * Episode reward {} * Avg Reward {}".format(episode, frame_idx, episode_reward, avg_reward))
     avg_reward_list.append(avg_reward)
     
