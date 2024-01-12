@@ -131,11 +131,11 @@ if __name__ == '__main__':
     os.makedirs(WEIGHTS_FOLDER)
   else:
     if LOAD_WEIGHTS:
-      value_net.load_state_dict(torch.load(WEIGHTS_FOLDER + '/SAC_weights_value_net.pt'))
-      target_value_net.load_state_dict(torch.load(WEIGHTS_FOLDER + '/SAC_weights_target_value_net.pt'))
-      soft_q_net1.load_state_dict(torch.load(WEIGHTS_FOLDER + '/SAC_weights_soft_q_net1.pt'))
-      soft_q_net2.load_state_dict(torch.load(WEIGHTS_FOLDER + '/SAC_weights_soft_q_net2.pt'))
-      policy_net.load_state_dict(torch.load(WEIGHTS_FOLDER + '/SAC_weights_policy_net.pt'))
+      value_net.load_state_dict(torch.load(WEIGHTS_FOLDER + '/weights_value_net.pt'))
+      target_value_net.load_state_dict(torch.load(WEIGHTS_FOLDER + '/weights_target_value_net.pt'))
+      soft_q_net1.load_state_dict(torch.load(WEIGHTS_FOLDER + '/weights_soft_q_net1.pt'))
+      soft_q_net2.load_state_dict(torch.load(WEIGHTS_FOLDER + '/weights_soft_q_net2.pt'))
+      policy_net.load_state_dict(torch.load(WEIGHTS_FOLDER + '/weights_policy_net.pt'))
     else:
       for target_param, param in zip(target_value_net.parameters(), value_net.parameters()):
         target_param.data.copy_(param.data)
@@ -194,9 +194,9 @@ if __name__ == '__main__':
     print("Episode {} * Frame * {} * Episode reward {} * Avg Reward {}".format(episode, frame_idx, episode_reward, avg_reward))
     avg_reward_list.append(avg_reward)
   
-  torch.save(value_net.state_dict(), WEIGHTS_FOLDER + '/SAC_weights_value_net.pt')
-  torch.save(target_value_net.state_dict(), WEIGHTS_FOLDER + '/SAC_weights_target_value_net.pt')
-  torch.save(soft_q_net1.state_dict(), WEIGHTS_FOLDER + '/SAC_weights_soft_q_net1.pt')
-  torch.save(soft_q_net2.state_dict(), WEIGHTS_FOLDER + '/SAC_weights_soft_q_net2.pt')
-  torch.save(policy_net.state_dict(), WEIGHTS_FOLDER + '/SAC_weights_policy_net.pt')
+  torch.save(value_net.state_dict(), WEIGHTS_FOLDER + '/weights_value_net.pt')
+  torch.save(target_value_net.state_dict(), WEIGHTS_FOLDER + '/weights_target_value_net.pt')
+  torch.save(soft_q_net1.state_dict(), WEIGHTS_FOLDER + '/weights_soft_q_net1.pt')
+  torch.save(soft_q_net2.state_dict(), WEIGHTS_FOLDER + '/weights_soft_q_net2.pt')
+  torch.save(policy_net.state_dict(), WEIGHTS_FOLDER + '/weights_policy_net.pt')
     
