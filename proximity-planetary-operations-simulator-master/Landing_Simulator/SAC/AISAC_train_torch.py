@@ -23,15 +23,21 @@ import wandb
 
 # Hyperparameters:
 MAX_FRAMES = 10000
-MAX_STEPS = 500
+MAX_STEPS = 1000
 MAX_EPISODES = 2000
+REPLAY_BUFFER_SIZE=100000
+BATCH_SIZE = 64
+HIDDEN_DIM = 128
+N_ASYNC_PROCESSES = 2
+ACTION_REPEAT = 5 # Number of times to repeat each action in the 3d environment
+
+
 WEIGHTS_FOLDER = 'AISAC_weights'
 LOAD_WEIGHTS = False
-ENV = '2d' # '2d' or '3d
+ENV = '3d' # '2d' or '3d
 RENDER = False 
-REPLAY_BUFFER_SIZE=100000
-BATCH_SIZE = 128
 WANDB_LOG = True
+USE_GPU_IF_AVAILABLE = True 
 
 setproctitle.setproctitle("AutonomousLandingProcess")
 sys.path.append('.')
@@ -74,13 +80,16 @@ def main():
                   'max_steps': MAX_STEPS,
                   'replay_buffer_size': REPLAY_BUFFER_SIZE,
                   'batch_size': BATCH_SIZE,
-                  'load_weights': LOAD_WEIGHTS
+                  'hidden_dim': HIDDEN_DIM,
+                  'load_weights': LOAD_WEIGHTS,
+                  'device': device.type,
+                  'action_repeat': ACTION_REPEAT,
+                  'n_async_processes': N_ASYNC_PROCESSES
                 }
               )
 
   if ENV == '3d':
-    env = LanderGymEnv(renders=RENDER)
-    #env = NormalizedActions(env) 
+    env = LanderGymEnv(renders=RENDER, actionRepeat=ACTION_REPEAT)
   else:  
     render_mode = 'human' if RENDER else None
     env = gym.make("LunarLander-v2", render_mode=render_mode, continuous = True, gravity = -10.0, enable_wind = False, wind_power = 15.0, turbulence_power = 1.5)
@@ -95,23 +104,17 @@ def main():
   print("max value of action -> {}".format(upper_bound))
   print("min value of action -> {}".format(lower_bound))
   
-  device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+  device = torch.device("cuda" if torch.cuda.is_available() else "cpu") if USE_GPU_IF_AVAILABLE else torch.device("cpu")
   print('Device set to : ' + str(torch.cuda.get_device_name(device) if device.type == 'cuda' else 'cpu' ))
   async_device = torch.device("cpu")
   
-  # Define Training Hyperparameters:
-
   frame_idx = 0
-  
   episode_rewards = deque(maxlen=100)
   avg_reward_list = []
-  batch_size = 128
-  n_async_processes = 2
 
-  network_hidden_dim = 256
   rwlock = RWLock()
   #weights_file_lock = InterProcessLock("weights/AISAC_weights/")#manager_shared_data.Lock() # Shared lock for file access
-  network = NetworksManager(device, state_dim, action_dim, network_hidden_dim,rwlock)
+  network = NetworksManager(device, state_dim, action_dim, HIDDEN_DIM, rwlock)
   
   if not os.path.exists(WEIGHTS_FOLDER):
     os.makedirs(WEIGHTS_FOLDER)
@@ -121,7 +124,6 @@ def main():
   replay_buffer = ReplayBuffer(REPLAY_BUFFER_SIZE)
   local_buffer = [] # cumulate the transitions here and at the end of each episode push the cumulative reward (rho) to replay_buffer
   last_infusion_episode = 0
-  last_plot_episode = 0
   #TODO: variaable that says if the network is updated. if yes, agents will update theirs network, otherwise its useless
 
       
@@ -132,10 +134,10 @@ def main():
   delayed_buffer_lock = manager_shared_data.Lock()
   
   #file_lock = 
-  agents = [AsyncAgent(i, async_device, global_episode_counter, delayed_buffer, delayed_buffer_lock, network_hidden_dim, WEIGHTS_FOLDER, MAX_EPISODES, ENV, state_dim, action_dim, rwlock) for i in range(n_async_processes)]
+  agents = [AsyncAgent(i, async_device, global_episode_counter, delayed_buffer, delayed_buffer_lock, HIDDEN_DIM, WEIGHTS_FOLDER, MAX_EPISODES, ENV, state_dim, action_dim, rwlock) for i in range(N_ASYNC_PROCESSES)]
   
   [agent.start() for agent in agents]
-  print("All the ",n_async_processes," Agents are ready!")
+  print("All the ",N_ASYNC_PROCESSES," Agents are ready!")
 
  
   #Train with episodes:
@@ -164,9 +166,9 @@ def main():
       episode_reward += reward
       frame_idx += 1
       step += 1
-      if len(replay_buffer) >= batch_size:
+      if len(replay_buffer) >= BATCH_SIZE:
         print("Update the network weights...", 'Replay_buffer size = ', len(replay_buffer))
-        network.update(replay_buffer, batch_size)
+        network.update(replay_buffer, BATCH_SIZE)
           #await loop.run_in_executor(pool, network.save_async,weights_filename)
       
       if done:

@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.distributions import Normal
-
+import gc
 import numpy as np
 import matplotlib.pyplot as plt
 import gymnasium as gym # import gym #with pip installation already imports also box2d
@@ -22,13 +22,17 @@ from model import ValueNetwork, SoftQNetwork, PolicyNetwork
 # Hyperparameters:
 MAX_FRAMES = 100000
 MAX_STEPS = 1000
+REPLAY_BUFFER_SIZE=100000
+BATCH_SIZE = 64
+HIDDEN_DIM = 128
+ACTION_REPEAT = 5 # Number of times to repeat each action in the 3d environment
+
+ENV = '3d' # '2d' or '3d
 WEIGHTS_FOLDER = 'ISAC_weights'
 LOAD_WEIGHTS = False
-ENV = '2d' # '2d' or '3d
 RENDER = False 
-REPLAY_BUFFER_SIZE=100000
-BATCH_SIZE = 4
 WANDB_LOG = True
+USE_GPU_IF_AVAILABLE = True 
 
 #Load simplified environment - no atmospheric disturbances:
 #import lander_gym_env
@@ -39,9 +43,17 @@ from lander_gym_env_with_gusts import LanderGymEnv
 
 print('OK! All imports successful!')
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu") if USE_GPU_IF_AVAILABLE else torch.device("cpu")
 print('Device set to : ' + str(torch.cuda.get_device_name(device) if device.type == 'cuda' else 'cpu' ))
 
+
+def save_weights(value_net, target_value_net, soft_q_net1, soft_q_net2, policy_net):
+  torch.save(value_net.state_dict(), WEIGHTS_FOLDER + '/weights_value_net.pt')
+  torch.save(target_value_net.state_dict(), WEIGHTS_FOLDER + '/weights_target_value_net.pt')
+  torch.save(soft_q_net1.state_dict(), WEIGHTS_FOLDER + '/weights_soft_q_net1.pt')
+  torch.save(soft_q_net2.state_dict(), WEIGHTS_FOLDER + '/weights_soft_q_net2.pt')
+  torch.save(policy_net.state_dict(), WEIGHTS_FOLDER + '/weights_policy_net.pt')
+  
 
 def update(batch_size, gamma=0.99, soft_tau=1e-2):
   state, action, reward, next_state, done = replay_buffer.sample(batch_size)
@@ -104,12 +116,15 @@ if __name__ == '__main__':
                   'max_steps': MAX_STEPS,
                   'replay_buffer_size': REPLAY_BUFFER_SIZE,
                   'batch_size': BATCH_SIZE,
-                  'load_weights': LOAD_WEIGHTS
+                  'hidden_dim': HIDDEN_DIM,
+                  'load_weights': LOAD_WEIGHTS,
+                  'device': device.type,
+                  'action_repeat': ACTION_REPEAT
                 }
               )
   
   if ENV == '3d':
-    env = LanderGymEnv(renders=RENDER)
+    env = LanderGymEnv(renders=RENDER, actionRepeat=ACTION_REPEAT)
   else:  
     render_mode = 'human' if RENDER else None
     env = gym.make("LunarLander-v2", render_mode=render_mode, continuous = True, gravity = -10.0, enable_wind = False, wind_power = 15.0, turbulence_power = 1.5)
@@ -123,13 +138,12 @@ if __name__ == '__main__':
   lower_bound = env.action_space.low[0]
   print("max value of action -> {}".format(upper_bound))
   print("min value of action -> {}".format(lower_bound))
-  hidden_dim = 256
   
-  value_net = ValueNetwork(device, state_dim, hidden_dim).to(device)
-  target_value_net = ValueNetwork(device, state_dim, hidden_dim).to(device)
-  soft_q_net1 = SoftQNetwork(device, state_dim, action_dim, hidden_dim).to(device)
-  soft_q_net2 = SoftQNetwork(device, state_dim, action_dim, hidden_dim).to(device)
-  policy_net = PolicyNetwork(device, state_dim, action_dim, hidden_dim).to(device)
+  value_net = ValueNetwork(device, state_dim, HIDDEN_DIM).to(device)
+  target_value_net = ValueNetwork(device, state_dim, HIDDEN_DIM).to(device)
+  soft_q_net1 = SoftQNetwork(device, state_dim, action_dim, HIDDEN_DIM).to(device)
+  soft_q_net2 = SoftQNetwork(device, state_dim, action_dim, HIDDEN_DIM).to(device)
+  policy_net = PolicyNetwork(device, state_dim, action_dim, HIDDEN_DIM).to(device)
   
   if not os.path.exists(WEIGHTS_FOLDER):
     os.makedirs(WEIGHTS_FOLDER)
@@ -158,9 +172,7 @@ if __name__ == '__main__':
   policy_optimizer = optim.Adam(policy_net.parameters(), lr=policy_lr)
   
   replay_buffer = ReplayBuffer(REPLAY_BUFFER_SIZE)
-  # Since we need to push rho at the end of each episode
-  # we cumulate the transitions and at the end we push the results to replay_buffer
-  local_buffer = []
+  local_buffer = [] # Since we need to push rho at the end of each episode, we cumulate the transitions and at the end we push the results to replay_buffer 
   
   frame_idx = 0
   episode = 0
@@ -169,13 +181,14 @@ if __name__ == '__main__':
   episode_reward_list = []
   steps_list = []
   
-  #Train with episodes:
+  # Training Loop:
   while frame_idx < MAX_FRAMES:
+    episode += 1
     state = env.reset()
     if ENV == '2d': state = state[0]
     episode_reward = 0
-    episode += 1
     print('\nEpisode', episode, 'starting at frame_idx = ', frame_idx)
+    
     step = 0
     while step <= MAX_STEPS:
       if frame_idx > 50:
@@ -194,16 +207,15 @@ if __name__ == '__main__':
       frame_idx += 1
       step+=1
       
-      if len(replay_buffer) >= BATCH_SIZE:#*2 # update the networks
-        if not ENV == '2d': print("Update the network weights...")
+      if len(replay_buffer) >= BATCH_SIZE: # update the networks
         update(BATCH_SIZE)
       
       if done:
         break
 
-    #we remember how many step we did in our episode
-    steps_list.append(step)
-    # The idea is to delay the infusion  of new experience to the replay_buffer 
+    steps_list.append(step) # store how many steps we did in our episode
+    
+    # The idea is to delay the infusion of new experience to the replay_buffer 
     # avoiding overfitting so that the network will be trained more using old experience
     if episode % 4 == 0:
       print("Updating the replay buffer...")
@@ -211,6 +223,13 @@ if __name__ == '__main__':
       episode_reward_list = []
       local_buffer = []
       steps_list = []
+    
+    if episode % 10 == 0:
+      save_weights(value_net, target_value_net, soft_q_net1, soft_q_net2, policy_net)
+    
+    if device.type == 'cuda':
+      torch.cuda.empty_cache()
+      gc.collect()
 
     rewards.append(episode_reward)
     avg_reward = np.mean(rewards[-100:])
@@ -218,39 +237,5 @@ if __name__ == '__main__':
     print("Episode {} * Frame * {} * Episode reward {} * Avg Reward {}".format(episode, frame_idx, episode_reward, avg_reward))
     avg_reward_list.append(avg_reward)
     
-  torch.save(value_net.state_dict(), WEIGHTS_FOLDER + '/weights_value_net.pt')
-  torch.save(target_value_net.state_dict(), WEIGHTS_FOLDER + '/weights_target_value_net.pt')
-  torch.save(soft_q_net1.state_dict(), WEIGHTS_FOLDER + '/weights_soft_q_net1.pt')
-  torch.save(soft_q_net2.state_dict(), WEIGHTS_FOLDER + '/weights_soft_q_net2.pt')
-  torch.save(policy_net.state_dict(), WEIGHTS_FOLDER + '/weights_policy_net.pt')
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
+  save_weights(value_net, target_value_net, soft_q_net1, soft_q_net2, policy_net)
+  
