@@ -40,7 +40,7 @@ from lander_gym_env_with_gusts import LanderGymEnv
 print('OK! All imports successful!')
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-print('Device set to : ' + str(torch.cuda.get_device_name(device)))
+print('Device set to : ' + str(torch.cuda.get_device_name(device) if device.type == 'cuda' else 'cpu' ))
 
 
 def update(batch_size, gamma=0.99, soft_tau=1e-2):
@@ -171,7 +171,8 @@ if __name__ == '__main__':
   
   #Train with episodes:
   while frame_idx < MAX_FRAMES:
-    state = env.reset()[0]
+    state = env.reset()
+    if ENV == '2d': state = state[0]
     episode_reward = 0
     episode += 1
     print('\nEpisode', episode, 'starting at frame_idx = ', frame_idx)

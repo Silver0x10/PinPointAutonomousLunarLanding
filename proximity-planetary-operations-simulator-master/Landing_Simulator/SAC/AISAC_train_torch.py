@@ -1,4 +1,3 @@
-import asyncio
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -60,11 +59,10 @@ def plot(frame_idx, rewards):
   
 # Initialize and Run executable:
 
-async def main():
+def main():
   print("The Main Process PID is: ", os.getpid())
   torch.manual_seed(42)
   torch.multiprocessing.set_start_method('spawn')
-  loop = asyncio.get_running_loop()
   
   if WANDB_LOG:
     wandb.login(key='efa11006b3b5487ccfc221897831ea5ef2ff518f')
@@ -97,9 +95,8 @@ async def main():
   print("max value of action -> {}".format(upper_bound))
   print("min value of action -> {}".format(lower_bound))
   
-  #device = torch.device("cpu")
   device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-  print('Device set to : ' + str(torch.cuda.get_device_name(device)))
+  print('Device set to : ' + str(torch.cuda.get_device_name(device) if device.type == 'cuda' else 'cpu' ))
   async_device = torch.device("cpu")
   
   # Define Training Hyperparameters:
@@ -144,7 +141,8 @@ async def main():
   #Train with episodes:
   episode = None
   while global_episode_counter.value < MAX_EPISODES:
-    state = env.reset()[0]
+    state = env.reset()
+    if ENV == '2d': state = state[0]
     episode_reward = 0
     with global_episode_counter.get_lock():
       global_episode_counter.value += 1
@@ -207,8 +205,6 @@ async def main():
       pool.submit(network.save_async, WEIGHTS_FOLDER)
       #await loop.run_in_executor(pool,network.save_async,weights_filename)
       print('3')
-      #
-    #asyncio.run()
     
   [agent.terminate() for agent in agents] # delete all the agents when Main Agent finished
   delayed_buffer[:] = []
@@ -231,4 +227,4 @@ async def main():
 
     
 if __name__ == '__main__':
-  asyncio.run(main())
+  main()

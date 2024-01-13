@@ -40,7 +40,7 @@ from lander_gym_env_with_gusts import LanderGymEnv
 print('OK! All imports successful!')
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-print('Device set to : ' + str(torch.cuda.get_device_name(device)))
+print('Device set to : ' + str(torch.cuda.get_device_name(device) if device.type == 'cuda' else 'cpu' ))
     
   
 def update(batch_size, gamma=0.99, soft_tau=1e-2):
@@ -163,7 +163,8 @@ if __name__ == '__main__':
   episode = 0
   while frame_idx < MAX_FRAMES:
     episode += 1
-    state = env.reset()[0]
+    state = env.reset()
+    if ENV == '2d': state = state[0]
     episode_reward = 0
     print('Starting new episode at frame_idx = ', frame_idx)
     
@@ -186,6 +187,14 @@ if __name__ == '__main__':
     
       if len(replay_buffer) > BATCH_SIZE:
         update(BATCH_SIZE)
+        
+      if episode % 10 == 0:
+        torch.save(value_net.state_dict(), WEIGHTS_FOLDER + '/weights_value_net.pt')
+        torch.save(target_value_net.state_dict(), WEIGHTS_FOLDER + '/weights_target_value_net.pt')
+        torch.save(soft_q_net1.state_dict(), WEIGHTS_FOLDER + '/weights_soft_q_net1.pt')
+        torch.save(soft_q_net2.state_dict(), WEIGHTS_FOLDER + '/weights_soft_q_net2.pt')
+        torch.save(policy_net.state_dict(), WEIGHTS_FOLDER + '/weights_policy_net.pt')
+          
       
       if done or episode_reward > 200:
         break

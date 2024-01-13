@@ -63,7 +63,8 @@ class AsyncAgent(torch.multiprocessing.Process):
     while self.global_episode_counter.value < self.max_episodes:
       if local_episode % 10 == 0:
         self.network.load(self.weights_folder)
-      state = self.env.reset()[0]
+      state = self.env.reset()
+      if self.env_type == '2d': state = state[0]
       episode_reward = 0
       with self.global_episode_counter.get_lock():
         self.global_episode_counter.value += 1
