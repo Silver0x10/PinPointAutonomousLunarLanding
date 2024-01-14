@@ -25,7 +25,7 @@ import wandb
 MAX_FRAMES = 10000
 MAX_STEPS = 1000
 MAX_EPISODES = 2000
-REPLAY_BUFFER_SIZE=100000
+REPLAY_BUFFER_SIZE = 5000
 BATCH_SIZE = 64
 HIDDEN_DIM = 128
 N_ASYNC_PROCESSES = 2
@@ -70,6 +70,10 @@ def main():
   torch.manual_seed(42)
   torch.multiprocessing.set_start_method('spawn')
   
+  device = torch.device("cuda" if torch.cuda.is_available() else "cpu") if USE_GPU_IF_AVAILABLE else torch.device("cpu")
+  print('Device set to : ' + str(torch.cuda.get_device_name(device) if device.type == 'cuda' else 'cpu' ))
+  async_device = torch.device("cpu")
+  
   if WANDB_LOG:
     wandb.login(key='efa11006b3b5487ccfc221897831ea5ef2ff518f')
     wandb.init(project='lunar_lander', 
@@ -103,10 +107,6 @@ def main():
   lower_bound = env.action_space.low[0]
   print("max value of action -> {}".format(upper_bound))
   print("min value of action -> {}".format(lower_bound))
-  
-  device = torch.device("cuda" if torch.cuda.is_available() else "cpu") if USE_GPU_IF_AVAILABLE else torch.device("cpu")
-  print('Device set to : ' + str(torch.cuda.get_device_name(device) if device.type == 'cuda' else 'cpu' ))
-  async_device = torch.device("cpu")
   
   frame_idx = 0
   episode_rewards = deque(maxlen=100)
@@ -167,7 +167,7 @@ def main():
       frame_idx += 1
       step += 1
       if len(replay_buffer) >= BATCH_SIZE:
-        print("Update the network weights...", 'Replay_buffer size = ', len(replay_buffer))
+        # print("Update the network weights...", 'Replay_buffer size = ', len(replay_buffer))
         network.update(replay_buffer, BATCH_SIZE)
           #await loop.run_in_executor(pool, network.save_async,weights_filename)
       
@@ -196,7 +196,7 @@ def main():
       last_infusion_episode = global_episode_counter.value
       with delayed_buffer_lock:
         for transition in delayed_buffer: replay_buffer.push_transition(*transition)
-        delayed_buffer[:] = [] # TODO check if this is the right way to clear the list
+        delayed_buffer[:] = [] 
       print(f'''Replay buffer updated ==> new len: {len(replay_buffer)}''')
 
     # Run in a custom thread pool:
