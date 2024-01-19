@@ -1,43 +1,25 @@
 import torch
 from model import NetworksManager
 from lander_gym_env_with_gusts import LanderGymEnv
-#from torch.multiprocessing import Lock
-import numpy as np
-from collections import deque
 import setproctitle
 import gymnasium as gym
 
-
-
 # Multiple threads are subject to the global interpreter lock (GIL), whereas multiple child processes are not subject to the GIL.
-
 # The GIL is a programming pattern in the reference Python interpreter (e.g. CPython, the version of Python you download from python.org).
-
 # It is a lock in the sense that it uses synchronization to ensure that only one thread of execution can execute instructions at a time within a Python process.
-
 # This means that although we may have multiple threads in our program, only one thread can execute at a time.
-
 # The GIL is used within each Python process, but not across processes. So this is why we are using process for each agent and thread to do only I/O bound activities.
 
-
-
-
-
-
-
-
-
 class AsyncAgent(torch.multiprocessing.Process):
-  def __init__(self, id, device, global_episode_counter, delayed_buffer, delayed_buffer_lock, hidden_dim, weights_folder, max_episodes, env_type, state_dim, action_dim,rwlock):
+  def __init__(self, id, device, global_episode_counter, delayed_buffer, delayed_buffer_available, hidden_dim, weights_folder, max_episodes, env_type, state_dim, action_dim,rwlock):
     super(AsyncAgent, self).__init__()
     print(id)
     self.id = id
-    #print(rwlock)
     self.rwlock = rwlock
     self.global_episode_counter = global_episode_counter
     self.local_buffer = []
     self.delayed_buffer = delayed_buffer
-    self.delayed_buffer_lock = delayed_buffer_lock
+    self.delayed_buffer_available = delayed_buffer_available
     self.hidden_dim = hidden_dim
     self.batch_size = 0
     self.max_episodes = max_episodes
@@ -58,8 +40,6 @@ class AsyncAgent(torch.multiprocessing.Process):
     max_steps= 300
     local_episode = 0
     self.network.load(self.weights_folder)
-    #episode_rewards = deque(maxlen=100)
-    #avg_reward_list = []
     while self.global_episode_counter.value < self.max_episodes:
       if local_episode % 10 == 0:
         self.network.load(self.weights_folder)
@@ -89,23 +69,23 @@ class AsyncAgent(torch.multiprocessing.Process):
         if done:
           break
       local_episode +=1
-      #episode_rewards.append(episode_reward)
-      #avg_reward = np.mean(episode_rewards)
-      #avg_reward_list.append(avg_reward)
-      #print(f'''Agent {self.id}\tEpisode {episode} FINISHED after {step} steps ==> Episode Reward: {episode_reward:3f} / Avg Reward: {avg_reward:.3f}''')
-      
+      print(f'''Agent {self.id}\tEpisode {episode} FINISHED after {step} steps ==> Episode Reward: {episode_reward:3f}''')
+
       for transition in self.local_buffer: transition.append(episode_reward) # push the cumulative reward to the replay buffer
 
-      with self.delayed_buffer_lock:
-        for transition in self.local_buffer: self.delayed_buffer.append(tuple(transition)) # The access to the list is protected by the Manager
+      self.delayed_buffer_available.wait() 
+      for transition in self.local_buffer: 
+        if self.delayed_buffer.full(): self.delayed_buffer.get() # removing tht oldest transition from the queue
+        self.delayed_buffer.put(tuple(transition))
+          
       self.local_buffer = []
       
-
   
   def run(self):
     print('Starting agent', self.id)
-    #give a name to the process
-    setproctitle.setproctitle("AutonomousLandingSubProcess"+str(self.id))
+    torch.manual_seed(42)
+    torch.multiprocessing.set_sharing_strategy('file_system')
+    setproctitle.setproctitle("AutonomousLandingSubProcess"+str(self.id)) # give a name to the process
     # Since we need first create the process and then "connect" it to the client of Landergym
     # We need to initialize it here ( when the process is created ) and not in the constructor
 
@@ -115,10 +95,7 @@ class AsyncAgent(torch.multiprocessing.Process):
       else:  
         self.env = gym.make("LunarLander-v2", continuous = True, gravity = -10.0, enable_wind = False, wind_power = 15.0, turbulence_power = 1.5)
     
-    
-    print('OK! Environment of agent', self.id, 'is configurated! ---------------------------------------')
+    print('OK! Environment of agent', self.id, 'is configured! ---------------------------------------')
     self.rollout()
-    #with self.global_episode_counter.get_lock():
-    #  self.global_episode_counter.value += 1
     print('Agent', self.id, 'finished')
 
