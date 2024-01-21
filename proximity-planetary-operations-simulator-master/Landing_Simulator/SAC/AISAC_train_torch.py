@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import torch
 import os
 import concurrent.futures
@@ -178,6 +179,7 @@ def main():
     
     [agent.terminate() for agent in agents] # delete all the agents when Main Agent finished
     replay_buffer.clear_buffer()
+    delayed_buffer.cancel_join_thread()
     del network # Delete the model to free up memory
     torch.cuda.empty_cache() # Release GPU memory not in use by PyTorch
 
