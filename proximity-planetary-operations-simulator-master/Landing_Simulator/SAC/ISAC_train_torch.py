@@ -11,6 +11,7 @@ import random
 import os
 import sys
 import wandb
+from tqdm import tqdm
  
 sys.path.append('.')
 sys.path.append('..')
@@ -20,19 +21,19 @@ from prioritized_replay_buffer import ReplayBuffer
 from model import ValueNetwork, SoftQNetwork, PolicyNetwork
 
 # Hyperparameters:
-MAX_FRAMES = 100000
-MAX_STEPS = 1000
-REPLAY_BUFFER_SIZE=100000
+MAX_EPISODES = 1000
+MAX_STEPS = 100
+REPLAY_BUFFER_SIZE=10_000
 BATCH_SIZE = 64
-HIDDEN_DIM = 128
-ACTION_REPEAT = 5 # Number of times to repeat each action in the 3d environment
+HIDDEN_DIM = 256
+ACTION_REPEAT = 50 # Number of times to repeat each action in the 3d environment
 
 ENV = '3d' # '2d' or '3d
 WEIGHTS_FOLDER = 'ISAC_weights'
 LOAD_WEIGHTS = False
-RENDER = False 
+RENDER = True 
 WANDB_LOG = True
-USE_GPU_IF_AVAILABLE = True 
+USE_GPU_IF_AVAILABLE = False 
 
 #Load simplified environment - no atmospheric disturbances:
 #import lander_gym_env
@@ -112,7 +113,7 @@ if __name__ == '__main__':
               name='lander-'+ENV+'-isac',
               config={
                   'env': ENV,
-                  'max_frames': MAX_FRAMES,
+                  'max_episodes': MAX_EPISODES,
                   'max_steps': MAX_STEPS,
                   'replay_buffer_size': REPLAY_BUFFER_SIZE,
                   'batch_size': BATCH_SIZE,
@@ -182,16 +183,15 @@ if __name__ == '__main__':
   steps_list = []
   
   # Training Loop:
-  while frame_idx < MAX_FRAMES:
+  while episode < MAX_EPISODES:
     episode += 1
     state = env.reset()
     if ENV == '2d': state = state[0]
     episode_reward = 0
     print('\nEpisode', episode, 'starting at frame_idx = ', frame_idx)
     
-    step = 0
-    while step <= MAX_STEPS:
-      if frame_idx > 50:
+    for step in tqdm(range(MAX_STEPS)):
+      if episode > 100:
         action = policy_net.get_action(state).detach()
         next_state, reward, done, *_ = env.step(action.numpy())
       else: 
@@ -205,7 +205,6 @@ if __name__ == '__main__':
       episode_reward += reward
       episode_reward_list.append(episode_reward)
       frame_idx += 1
-      step+=1
       
       if len(replay_buffer) >= BATCH_SIZE: # update the networks
         update(BATCH_SIZE)
