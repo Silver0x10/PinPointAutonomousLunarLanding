@@ -25,19 +25,19 @@ from model import ValueNetwork, SoftQNetwork, PolicyNetwork
 #from lander_gym_env import LanderGymEnv
 
 # Hyperparameters:
-MAX_FRAMES = 100000
-MAX_STEPS = 1000
-REPLAY_BUFFER_SIZE=100000
+MAX_EPISODES = 1000
+MAX_STEPS = 100
+REPLAY_BUFFER_SIZE=10_000
 BATCH_SIZE = 64
-HIDDEN_DIM = 128
-ACTION_REPEAT = 5 # Number of times to repeat each action in the 3d environment
+HIDDEN_DIM = 256
+ACTION_REPEAT = 50 # Number of times to repeat each action in the 3d environment
 
 ENV = '3d' # '2d' or '3d
-WEIGHTS_FOLDER = 'SAC_weights'
-LOAD_WEIGHTS = True
-RENDER = False 
+WEIGHTS_FOLDER = 'SAC_weights_3d'
+LOAD_WEIGHTS = False
+RENDER = True 
 WANDB_LOG = True
-USE_GPU_IF_AVAILABLE = True 
+USE_GPU_IF_AVAILABLE = False 
 
 #Load environment with gusts:
 from lander_gym_env_with_gusts import LanderGymEnv
@@ -111,7 +111,7 @@ if __name__ == '__main__':
               name='lander-'+ENV+'-sac',
               config={
                   'env': ENV,
-                  'max_frames': MAX_FRAMES,
+                  'max_episodes': MAX_EPISODES,
                   'max_steps': MAX_STEPS,
                   'replay_buffer_size': REPLAY_BUFFER_SIZE,
                   'batch_size': BATCH_SIZE,
@@ -178,7 +178,7 @@ if __name__ == '__main__':
   avg_reward_list = []
   
   # Training Loop:
-  while frame_idx < MAX_FRAMES:
+  while episode < MAX_EPISODES:
     episode += 1
     state = env.reset()
     if ENV == '2d': state = state[0]
@@ -186,13 +186,13 @@ if __name__ == '__main__':
     print('\nEpisode', episode, 'starting at frame_idx = ', frame_idx)
     
     for step in tqdm(range(MAX_STEPS)):
-      if frame_idx > 50:
+      if episode > 100:
         action = policy_net.get_action(state).detach()
         next_state, reward, done, *_ = env.step(action.numpy())
       else: 
         action = env.action_space.sample()
         next_state, reward, done, *_ = env.step(action)
-      
+      # print('at step ', step, ' action = ', action)
       replay_buffer.push(state, action, reward, next_state, done)
     
       state = next_state
