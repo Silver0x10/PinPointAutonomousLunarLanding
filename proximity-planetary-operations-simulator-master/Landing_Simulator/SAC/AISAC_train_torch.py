@@ -1,7 +1,7 @@
 import torch
 import os
 import concurrent.futures
-
+import psutil
 from rwlock import RWLock
 import numpy as np
 import matplotlib.pyplot as plt
@@ -18,15 +18,15 @@ MAX_STEPS = 300
 REPLAY_BUFFER_SIZE = 10000
 BATCH_SIZE = 512
 HIDDEN_DIM = 256
-N_ASYNC_PROCESSES = 4
-MAX_EPISODES = 3600 * 10
+N_ASYNC_PROCESSES = 2
+MAX_EPISODES = 2000
 ACTION_REPEAT = 5 # Number of times to repeat each action in the 3d environment
 
-ENV = '2d' # '2d' or '3d
+ENV = '3d' # '2d' or '3d
 WEIGHTS_FOLDER = 'AISAC_weights'
 LOAD_WEIGHTS = False
-RENDER = True 
-WANDB_LOG = False
+RENDER = False 
+WANDB_LOG = True
 USE_GPU_IF_AVAILABLE = True 
 
 # TODO organize better the repo to avoid this:
@@ -38,7 +38,28 @@ from prioritized_replay_buffer import ReplayBuffer
 from async_agent import AsyncAgent
 from model import NetworksManager
 print('OK! All imports successful!')
-  
+
+def get_resource_usage():
+    # Get system resource usage
+    cpu_percent = psutil.cpu_percent(interval=1)
+    virtual_memory = psutil.virtual_memory()
+    swap_memory = psutil.swap_memory()
+    disk_usage = psutil.disk_usage('/')
+
+    # Create a string with the resource information
+    resource_info = f"CPU Usage: {cpu_percent}%\n" \
+                    f"RAM Usage: {virtual_memory.percent}%\n" \
+                    f"Swap Usage: {swap_memory.percent}%\n" \
+                    f"Disk Usage: {disk_usage.percent}%\n"
+
+    return resource_info
+
+def save_to_file(file_path, content):
+    # Save the content to a text file
+    with open(file_path, 'w') as file:
+        file.write(content)
+
+
 def main():
     print("The Main Process PID is: ", os.getpid())
     torch.manual_seed(42)
@@ -107,6 +128,15 @@ def main():
     delayed_buffer = torch.multiprocessing.Queue(maxsize= REPLAY_BUFFER_SIZE)
     delayed_buffer_available = torch.multiprocessing.Event()
     delayed_buffer_available.set()
+
+    # Specify the file path where you want to save the information
+    file_path = "resource_usage.txt"
+
+
+    resource_info = get_resource_usage()
+    # Save the information to the specified file
+    save_to_file(file_path, resource_info)
+
     
     agents = [AsyncAgent(i, async_device, global_episode_counter, delayed_buffer, delayed_buffer_available, HIDDEN_DIM, WEIGHTS_FOLDER, MAX_EPISODES, ENV, state_dim, action_dim, rwlock) for i in range(N_ASYNC_PROCESSES)]
     [agent.start() for agent in agents]
@@ -173,7 +203,10 @@ def main():
             print(f'''Replay buffer updated ==> new len: {len(replay_buffer)}''')
 
         with concurrent.futures.ThreadPoolExecutor() as pool: # Run in a custom thread pool
+            # Get resource usage information
+            resource_info = get_resource_usage()
             pool.submit(network.save_async, WEIGHTS_FOLDER)
+            pool.submit(save_to_file, file_path, resource_info)
             #await loop.run_in_executor(pool,network.save_async,weights_filename)
     
     [agent.terminate() for agent in agents] # delete all the agents when Main Agent finished
@@ -184,3 +217,8 @@ def main():
     
 if __name__ == '__main__':
     main()
+
+
+
+
+

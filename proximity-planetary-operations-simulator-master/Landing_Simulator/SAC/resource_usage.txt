@@ -1,0 +1,4 @@
+CPU Usage: 15.4%
+RAM Usage: 89.7%
+Swap Usage: 73.5%
+Disk Usage: 51.8%
