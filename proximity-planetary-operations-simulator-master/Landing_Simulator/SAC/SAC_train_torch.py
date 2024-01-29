@@ -28,10 +28,11 @@ HIDDEN_DIM = 256
 ACTION_REPEAT = 50 # Number of times to repeat each action in the 3d environment
 
 ENV = '3d' # '2d' or '3d
-WEIGHTS_FOLDER = 'SAC_weights_3d'
+WEIGHTS_FOLDER = 'SAC_weights_'+ENV
 LOAD_WEIGHTS = False
 RENDER = True 
 WANDB_LOG = True
+WANDB_RUN_NAME = 'lander-'+ENV+'-sac'
 USE_GPU_IF_AVAILABLE = False 
 
 print('OK! All imports successful!')
@@ -100,7 +101,7 @@ if __name__ == '__main__':
   if WANDB_LOG:
     wandb.login(key='efa11006b3b5487ccfc221897831ea5ef2ff518f')
     wandb.init(project='lunar_lander', 
-              name='lander-'+ENV+'-sac',
+              name=WANDB_RUN_NAME,
               config={
                   'env': ENV,
                   'max_episodes': MAX_EPISODES,

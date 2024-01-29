@@ -24,10 +24,11 @@ MAX_EPISODES = 2000
 ACTION_REPEAT = 5 # Number of times to repeat each action in the 3d environment
 
 ENV = '3d' # '2d' or '3d
-WEIGHTS_FOLDER = 'AISAC_weights'
+WEIGHTS_FOLDER = 'AISAC_weights_'+ENV
 LOAD_WEIGHTS = False
 RENDER = False 
 WANDB_LOG = True
+WANDB_RUN_NAME = 'lander-'+ENV+'-aisac'
 USE_GPU_IF_AVAILABLE = True 
 
 # TODO organize better the repo to avoid this:
@@ -74,7 +75,7 @@ def main():
     if WANDB_LOG:
         wandb.login(key='efa11006b3b5487ccfc221897831ea5ef2ff518f')
         wandb.init(project='lunar_lander', 
-                    name='lander-'+ENV+'-aisac',
+                    name=WANDB_RUN_NAME,
                     config={
                         'env': ENV,
                         'max_frames': MAX_FRAMES,
