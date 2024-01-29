@@ -17,7 +17,6 @@ sys.path.append('.')
 sys.path.append('..')
 
 from prioritized_replay_buffer import ReplayBuffer
-#from normalized_actions import NormalizedActions
 from model import ValueNetwork, SoftQNetwork, PolicyNetwork
 
 # Hyperparameters:
@@ -34,13 +33,6 @@ LOAD_WEIGHTS = False
 RENDER = True 
 WANDB_LOG = True
 USE_GPU_IF_AVAILABLE = False 
-
-#Load simplified environment - no atmospheric disturbances:
-#import lander_gym_env
-#from lander_gym_env import LanderGymEnv
-
-#Load environment with gusts:
-from lander_gym_env_with_gusts import LanderGymEnv
 
 print('OK! All imports successful!')
 
@@ -125,6 +117,8 @@ if __name__ == '__main__':
               )
   
   if ENV == '3d':
+    # from lander_gym_env import LanderGymEnv # Load simplified environment - no atmospheric disturbances
+    from lander_gym_env_with_gusts import LanderGymEnv # Load environment with gusts
     env = LanderGymEnv(renders=RENDER, actionRepeat=ACTION_REPEAT)
   else:  
     render_mode = 'human' if RENDER else None
