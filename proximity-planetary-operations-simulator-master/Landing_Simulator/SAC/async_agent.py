@@ -52,7 +52,7 @@ class AsyncAgent(torch.multiprocessing.Process):
       print(f'''Agent {self.id}\tEpisode {episode} starting at local frame_idx {frame_idx}''')
       step = 0
       while step <= max_steps:
-        if frame_idx > 50:
+        if self.global_episode_counter.value > 50:
           action = self.network.policy_net.get_action(state).detach()
           next_state, reward, done, *_ = self.env.step(action.numpy())
         else: 

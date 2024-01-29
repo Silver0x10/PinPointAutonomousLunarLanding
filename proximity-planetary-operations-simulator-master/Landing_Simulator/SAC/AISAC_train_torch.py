@@ -14,13 +14,12 @@ import os
 import wandb
 
 # Hyperparameters:
-MAX_FRAMES = 1_000_000
+MAX_EPISODES = 1000
 MAX_STEPS = 300
 REPLAY_BUFFER_SIZE = 10000
-BATCH_SIZE = 512
+BATCH_SIZE = 64
 HIDDEN_DIM = 256
 N_ASYNC_PROCESSES = 2
-MAX_EPISODES = 2000
 ACTION_REPEAT = 5 # Number of times to repeat each action in the 3d environment
 
 ENV = '3d' # '2d' or '3d
@@ -78,7 +77,7 @@ def main():
                     name=WANDB_RUN_NAME,
                     config={
                         'env': ENV,
-                        'max_frames': MAX_FRAMES,
+                        'max_episodes': MAX_EPISODES,
                         'max_steps': MAX_STEPS,
                         'replay_buffer_size': REPLAY_BUFFER_SIZE,
                         'batch_size': BATCH_SIZE,
@@ -156,7 +155,7 @@ def main():
         print(f'''Agent MAIN\tEpisode {episode} starting at frame_idx {frame_idx}''')
         step = 0
         while step <= MAX_STEPS:
-            if frame_idx > 50:
+            if global_episode_counter.value > 100:
                 action = network.policy_net.get_action(state).detach()
                 next_state, reward, done, *_ = env.step(action.numpy())
             else: 
