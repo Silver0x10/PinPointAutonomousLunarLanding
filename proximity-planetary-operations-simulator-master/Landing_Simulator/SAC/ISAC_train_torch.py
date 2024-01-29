@@ -185,6 +185,7 @@ if __name__ == '__main__':
     episode_reward = 0
     print('\nEpisode', episode, 'starting at frame_idx = ', frame_idx)
     
+    steps_done = 0
     for step in tqdm(range(MAX_STEPS)):
       if episode > 100:
         action = policy_net.get_action(state).detach()
@@ -198,16 +199,17 @@ if __name__ == '__main__':
 
       state = next_state
       episode_reward += reward
-      episode_reward_list.append(episode_reward)
       frame_idx += 1
       
       if len(replay_buffer) >= BATCH_SIZE: # update the networks
         update(BATCH_SIZE)
       
       if done:
+        steps_done = step+1
         break
-
-    steps_list.append(step) # store how many steps we did in our episode
+    
+    episode_reward_list.append(episode_reward)
+    steps_list.append(steps_done) # store how many steps we did in our episode
     
     # The idea is to delay the infusion of new experience to the replay_buffer 
     # avoiding overfitting so that the network will be trained more using old experience

@@ -21,9 +21,7 @@ class ReplayBuffer:
     # in rho list we have the cumulative reward for each episode
     # so we will use max_step that says to us given a cumulative reward,
     # how many transitions has the same cumulative reward
-    #print(len(transitions))
-    #print( len(rho_list))
-    assert sum(max_step) == len(rho_list), "Error in the length of rho_list"
+    assert len(max_step) == len(rho_list), "Error in the length of rho_list"
 
     idx_reward = 0
     counter_items = 0
