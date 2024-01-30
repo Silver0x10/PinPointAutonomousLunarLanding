@@ -37,7 +37,7 @@ class AsyncAgent(torch.multiprocessing.Process):
   def rollout(self):
     #TODO: every Sub-Agent uses the same hyperparameter of the main Agent?
     frame_idx = 0
-    max_steps= 300
+    max_steps= 100
     local_episode = 0
     self.network.load(self.weights_folder)
     while self.global_episode_counter.value < self.max_episodes:

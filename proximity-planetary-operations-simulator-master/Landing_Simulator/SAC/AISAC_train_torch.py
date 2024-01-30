@@ -15,12 +15,12 @@ import wandb
 
 # Hyperparameters:
 MAX_EPISODES = 1000
-MAX_STEPS = 300
-REPLAY_BUFFER_SIZE = 10000
+MAX_STEPS = 100
+REPLAY_BUFFER_SIZE = 10_000
 BATCH_SIZE = 64
 HIDDEN_DIM = 256
 N_ASYNC_PROCESSES = 2
-ACTION_REPEAT = 5 # Number of times to repeat each action in the 3d environment
+ACTION_REPEAT = 50 # Number of times to repeat each action in the 3d environment
 
 ENV = '3d' # '2d' or '3d
 WEIGHTS_FOLDER = 'AISAC_weights_'+ENV

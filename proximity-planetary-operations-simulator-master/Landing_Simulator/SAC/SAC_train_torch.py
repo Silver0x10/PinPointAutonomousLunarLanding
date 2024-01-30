@@ -30,10 +30,10 @@ ACTION_REPEAT = 50 # Number of times to repeat each action in the 3d environment
 ENV = '3d' # '2d' or '3d
 WEIGHTS_FOLDER = 'SAC_weights_'+ENV
 LOAD_WEIGHTS = False
-RENDER = True 
+RENDER = False 
 WANDB_LOG = True
 WANDB_RUN_NAME = 'lander-'+ENV+'-sac'
-USE_GPU_IF_AVAILABLE = False 
+USE_GPU_IF_AVAILABLE = True 
 
 print('OK! All imports successful!')
 

@@ -30,10 +30,10 @@ ACTION_REPEAT = 50 # Number of times to repeat each action in the 3d environment
 ENV = '3d' # '2d' or '3d
 WEIGHTS_FOLDER = 'ISAC_weights_'+ENV
 LOAD_WEIGHTS = False
-RENDER = True 
+RENDER = False 
 WANDB_LOG = True
 WANDB_RUN_NAME = 'lander-'+ENV+'-isac'
-USE_GPU_IF_AVAILABLE = False 
+USE_GPU_IF_AVAILABLE = True 
 
 print('OK! All imports successful!')
 
@@ -172,6 +172,7 @@ if __name__ == '__main__':
   
   frame_idx = 0
   episode = 0
+  last_infusion_episode = 0
   rewards = [] 
   avg_reward_list = []
   episode_reward_list = []
@@ -213,7 +214,8 @@ if __name__ == '__main__':
     
     # The idea is to delay the infusion of new experience to the replay_buffer 
     # avoiding overfitting so that the network will be trained more using old experience
-    if episode % 4 == 0:
+    if episode - last_infusion_episode > 2:
+      last_infusion_episode = episode
       print("Updating the replay buffer...")
       replay_buffer.push_transitions(local_buffer, episode_reward_list, steps_list)
       episode_reward_list = []
