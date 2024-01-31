@@ -7,13 +7,13 @@ import torch.nn.functional as F
 
 
 class ReplayBuffer:
-  def __init__(self, capacity):
+  def __init__(self, capacity, threshold = 0.5):
     self.capacity = capacity
     self.buffer = []
     #TODO 1: use a new variable for on-policy transition?
     self.latest_transition_on_policy = ()
     self.position = 0
-    self.threshold = 0.5
+    self.threshold = threshold
     self.num_batches = 2
     
 

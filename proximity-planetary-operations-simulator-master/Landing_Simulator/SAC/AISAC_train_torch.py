@@ -17,6 +17,7 @@ import wandb
 MAX_EPISODES = 1000
 MAX_STEPS = 100
 REPLAY_BUFFER_SIZE = 10_000
+REPLAY_BUFFER_THRESHOLD = 0.5
 BATCH_SIZE = 64
 HIDDEN_DIM = 256
 N_ASYNC_PROCESSES = 2
@@ -80,6 +81,7 @@ def main():
                         'max_episodes': MAX_EPISODES,
                         'max_steps': MAX_STEPS,
                         'replay_buffer_size': REPLAY_BUFFER_SIZE,
+                        'replay_buffer_threshold': REPLAY_BUFFER_THRESHOLD,
                         'batch_size': BATCH_SIZE,
                         'hidden_dim': HIDDEN_DIM,
                         'load_weights': LOAD_WEIGHTS,
@@ -119,7 +121,7 @@ def main():
     if LOAD_WEIGHTS: network.load(WEIGHTS_FOLDER)
     network._save_sync(WEIGHTS_FOLDER)
     
-    replay_buffer = ReplayBuffer(REPLAY_BUFFER_SIZE)
+    replay_buffer = ReplayBuffer(REPLAY_BUFFER_SIZE, threshold=REPLAY_BUFFER_THRESHOLD)
     local_buffer = [] # cumulate the transitions here and at the end of each episode push the cumulative reward (rho) to replay_buffer
     last_infusion_episode = 0
     #TODO: variaable that says if the network is updated. if yes, agents will update theirs network, otherwise its useless

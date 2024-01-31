@@ -23,6 +23,7 @@ from model import ValueNetwork, SoftQNetwork, PolicyNetwork
 MAX_EPISODES = 1000
 MAX_STEPS = 100
 REPLAY_BUFFER_SIZE=10_000
+REPLAY_BUFFER_THRESHOLD = 0.5
 BATCH_SIZE = 64
 HIDDEN_DIM = 256
 ACTION_REPEAT = 50 # Number of times to repeat each action in the 3d environment
@@ -109,6 +110,7 @@ if __name__ == '__main__':
                   'max_episodes': MAX_EPISODES,
                   'max_steps': MAX_STEPS,
                   'replay_buffer_size': REPLAY_BUFFER_SIZE,
+                  'replay_buffer_threshold': REPLAY_BUFFER_THRESHOLD,
                   'batch_size': BATCH_SIZE,
                   'hidden_dim': HIDDEN_DIM,
                   'load_weights': LOAD_WEIGHTS,
@@ -167,7 +169,7 @@ if __name__ == '__main__':
   soft_q_optimizer2 = optim.Adam(soft_q_net2.parameters(), lr=soft_q_lr)
   policy_optimizer = optim.Adam(policy_net.parameters(), lr=policy_lr)
   
-  replay_buffer = ReplayBuffer(REPLAY_BUFFER_SIZE)
+  replay_buffer = ReplayBuffer(REPLAY_BUFFER_SIZE, threshold=REPLAY_BUFFER_THRESHOLD)
   local_buffer = [] # Since we need to push rho at the end of each episode, we cumulate the transitions and at the end we push the results to replay_buffer 
   
   frame_idx = 0
