@@ -55,13 +55,16 @@ Results are presented in comparison with the standard SAC algorithm. Graphs and 
 ![Lunar Landing](2d_training_avg_reward_global_episodes.png)
 - The performance comparison among ISAC, SAC, and AISAC reveals compelling insights. AISAC demonstrates superior efficiency, completing 5,000 episodes within the same timeframe that SAC and ISAC accomplish 1,000 episodes. This stark difference underscores AISAC's accelerated learning capabilities, showcasing its potential for rapid convergence and efficient exploration.
 It's worth noting also that in the 2D environment, AISAC didn't yield improvements compared to SAC and ISAC. Despite its prowess in the 3D lunar landscape, AISAC's advantages may not translate directly to the 2D setting. This observation suggests that the effectiveness of AISAC could be context-dependent, influenced by the complexity and dynamics of the environment.
+
 ![Lunar Landing](2d_training_avg_reward_local_episodes.png)
 - When considering local episodes, a notable observation emerges: there's a trend toward faster convergence within the initial 0-200 episode interval for AISAC. This accelerated convergence signifies the effectiveness of the algorithms in rapidly learning optimal policies early in the training process.
 Furthermore, despite the variance in convergence speed, SAC, ISAC ans AISAC ultimately converge to comparable average reward levels. This convergence parity indicates that while the initial learning dynamics may differ, both algorithms achieve similar performance outcomes in terms of average reward over time.
 ## Results 3D enviroment
+
 ![Lunar Landing](3d_training_avg_reward_global_episodes.png)
 - In the context of the 3D environment, AISAC emerges as a standout performer, surpassing both ISAC and SAC in terms of both average reward attainment and convergence speed. Notably, AISAC achieves higher average rewards compared to ISAC and SAC, and does so in a significantly shorter timeframe. This accelerated learning trajectory underscores the efficacy of AISAC's modifications in facilitating rapid policy optimization and enhancing exploration-exploitation dynamics.
 Additionally, the stability of average rewards attained by AISAC and ISAC is notably higher compared to SAC. This enhanced stability is a valuable property, as it indicates more consistent performance across episodes and mitigates potential fluctuations in learning dynamics.
+
 ![Lunar Landing](3d_training_avg_reward_local_episodes.png)
 - When examining the performance from the perspective of local episodes, it's important to note,as we said, that the main agent of AISAC completes its training (in this case) after 200 episodes, while the remaining 800 episodes are conducted by the sub-agents in parallel. Despite this division of labor, the total episode count remains consistent at 1,000 episodes.
 One notable observation is the initial spike in performance exhibited by AISAC, reminiscent of its behavior in the 2D environment. This underscores AISAC's capacity for rapid learning and exploration, facilitated by its parallel processing capabilities.
