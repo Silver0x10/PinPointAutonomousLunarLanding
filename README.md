@@ -15,17 +15,17 @@ Our contribution to the field, AISAC, extends ISAC's capabilities by introducing
   - `python3 SAC_train_torch.py`: Training script for standard SAC.
 
 ## Getting Started
-To initiate training for the respective algorithms, execute the following commands:
+To initiate training for the respective algorithms, execute the following commands (from the *SAC* folder):
 ```bash
 python3 ISAC_train_torch.py
 python3 AISAC_train_torch.py
 python3 SAC_train_torch.py
 ```
-To start the simulation
+To evaluate the agent it's possible to run
 ```bash
-python3 test_lander.py env  weightspath numberOfEpisodes 
+'python3 test_lander.py'
 ```
-where weightspath is the weight file path with respect to SAC folder, and numberOfEpisodes number of episodes for test.
+where you can use *WEIGHTS_FOLDER* to specify the path relative to the SAC folder containing the network weights to load, *ENV* to specify the environment (2d or 3d) and *TEST_EPISODES* to specify the number of episodes to perform during the evaluation.
 To utilize the weights obtained from our experimentation:
 [Weights download](https://drive.google.com/file/d/1O-KuW9f6e0KTG6RhgF9kD7ht7wlNOHlN/view?usp=sharing)
 
