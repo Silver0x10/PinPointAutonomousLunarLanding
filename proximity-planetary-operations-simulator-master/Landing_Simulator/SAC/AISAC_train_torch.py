@@ -14,21 +14,21 @@ import os
 import wandb
 
 # Hyperparameters:
-MAX_EPISODES = 1000
-MAX_STEPS = 100
+MAX_EPISODES = 100_000
+MAX_STEPS = 300
 REPLAY_BUFFER_SIZE = 10_000
 REPLAY_BUFFER_THRESHOLD = 0.5
 BATCH_SIZE = 64
 HIDDEN_DIM = 256
-N_ASYNC_PROCESSES = 2
+N_ASYNC_PROCESSES = 4
 ACTION_REPEAT = 50 # Number of times to repeat each action in the 3d environment
 
-ENV = '3d' # '2d' or '3d
-WEIGHTS_FOLDER = 'AISAC_weights_'+ENV
+ENV = '2d' # '2d' or '3d
+WEIGHTS_FOLDER = 'AISAC_weights_'+ENV+'_final_really'
 LOAD_WEIGHTS = False
-RENDER = False 
+RENDER = True 
 WANDB_LOG = True
-WANDB_RUN_NAME = 'lander-'+ENV+'-aisac'
+WANDB_RUN_NAME = 'lander-'+ENV+'-aisac-final-hopefully'
 USE_GPU_IF_AVAILABLE = True 
 
 # TODO organize better the repo to avoid this:
@@ -141,7 +141,7 @@ def main():
     save_to_file(file_path, resource_info)
 
     
-    agents = [AsyncAgent(i, async_device, global_episode_counter, delayed_buffer, delayed_buffer_available, HIDDEN_DIM, WEIGHTS_FOLDER, MAX_EPISODES, ENV, state_dim, action_dim, rwlock) for i in range(N_ASYNC_PROCESSES)]
+    agents = [AsyncAgent(id=i, device=async_device, global_episode_counter=global_episode_counter, delayed_buffer=delayed_buffer, delayed_buffer_available=delayed_buffer_available, hidden_dim=HIDDEN_DIM, weights_folder=WEIGHTS_FOLDER, max_episodes=MAX_EPISODES, max_steps=MAX_STEPS, env_type=ENV, state_dim=state_dim, action_dim=action_dim, rwlock=rwlock) for i in range(N_ASYNC_PROCESSES)]
     [agent.start() for agent in agents]
     print("All the ",N_ASYNC_PROCESSES," Agents are ready!")
   

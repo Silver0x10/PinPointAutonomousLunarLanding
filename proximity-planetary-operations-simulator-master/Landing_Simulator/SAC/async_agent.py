@@ -11,7 +11,7 @@ import gymnasium as gym
 # The GIL is used within each Python process, but not across processes. So this is why we are using process for each agent and thread to do only I/O bound activities.
 
 class AsyncAgent(torch.multiprocessing.Process):
-  def __init__(self, id, device, global_episode_counter, delayed_buffer, delayed_buffer_available, hidden_dim, weights_folder, max_episodes, env_type, state_dim, action_dim,rwlock):
+  def __init__(self, id, device, global_episode_counter, delayed_buffer, delayed_buffer_available, hidden_dim, weights_folder, max_episodes, max_steps, env_type, state_dim, action_dim, rwlock):
     super(AsyncAgent, self).__init__()
     print(id)
     self.id = id
@@ -23,6 +23,7 @@ class AsyncAgent(torch.multiprocessing.Process):
     self.hidden_dim = hidden_dim
     self.batch_size = 0
     self.max_episodes = max_episodes
+    self.max_steps = max_steps
     self.env_type = env_type
 
     self.env = None
@@ -37,7 +38,6 @@ class AsyncAgent(torch.multiprocessing.Process):
   def rollout(self):
     #TODO: every Sub-Agent uses the same hyperparameter of the main Agent?
     frame_idx = 0
-    max_steps= 100
     local_episode = 0
     self.network.load(self.weights_folder)
     while self.global_episode_counter.value < self.max_episodes:
@@ -51,7 +51,7 @@ class AsyncAgent(torch.multiprocessing.Process):
         episode = self.global_episode_counter.value
       print(f'''Agent {self.id}\tEpisode {episode} starting at local frame_idx {frame_idx}''')
       step = 0
-      while step <= max_steps:
+      while step <= self.max_steps:
         if self.global_episode_counter.value > 50:
           action = self.network.policy_net.get_action(state).detach()
           next_state, reward, done, *_ = self.env.step(action.numpy())
@@ -93,7 +93,7 @@ class AsyncAgent(torch.multiprocessing.Process):
       if self.env_type == '3d':
         self.env = LanderGymEnv(renders=False)
       else:  
-        self.env = gym.make("LunarLander-v2", continuous = True, gravity = -10.0, enable_wind = False, wind_power = 15.0, turbulence_power = 1.5)
+        self.env = gym.make("LunarLander-v2", render_mode='human', continuous = True, gravity = -10.0, enable_wind = False, wind_power = 15.0, turbulence_power = 1.5)
     
     print('OK! Environment of agent', self.id, 'is configured! ---------------------------------------')
     self.rollout()
