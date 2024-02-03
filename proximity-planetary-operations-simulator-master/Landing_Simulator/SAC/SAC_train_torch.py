@@ -21,18 +21,18 @@ from model import ValueNetwork, SoftQNetwork, PolicyNetwork
 
 # Hyperparameters:
 MAX_EPISODES = 1000
-MAX_STEPS = 100
+MAX_STEPS = 300
 REPLAY_BUFFER_SIZE=10_000
 BATCH_SIZE = 64
 HIDDEN_DIM = 256
 ACTION_REPEAT = 50 # Number of times to repeat each action in the 3d environment
 
-ENV = '3d' # '2d' or '3d
-WEIGHTS_FOLDER = 'SAC_weights_'+ENV
+ENV = '2d' # '2d' or '3d
+WEIGHTS_FOLDER = 'SAC_weights_'+ENV+'_final_really'
 LOAD_WEIGHTS = False
-RENDER = False 
+RENDER = True 
 WANDB_LOG = True
-WANDB_RUN_NAME = 'lander-'+ENV+'-sac'
+WANDB_RUN_NAME = 'lander-'+ENV+'-sac-final-hopefully'
 USE_GPU_IF_AVAILABLE = True 
 
 print('OK! All imports successful!')
