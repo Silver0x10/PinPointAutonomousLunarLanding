@@ -21,19 +21,19 @@ from model import ValueNetwork, SoftQNetwork, PolicyNetwork
 
 # Hyperparameters:
 MAX_EPISODES = 1000
-MAX_STEPS = 100
-REPLAY_BUFFER_SIZE=10_000
+MAX_STEPS = 300
+REPLAY_BUFFER_SIZE = 10_000
 REPLAY_BUFFER_THRESHOLD = 0.5
 BATCH_SIZE = 64
 HIDDEN_DIM = 256
 ACTION_REPEAT = 50 # Number of times to repeat each action in the 3d environment
 
-ENV = '3d' # '2d' or '3d
-WEIGHTS_FOLDER = 'ISAC_weights_'+ENV
+ENV = '2d' # '2d' or '3d
+WEIGHTS_FOLDER = 'ISAC_weights_'+ENV+'_final_really'
 LOAD_WEIGHTS = False
-RENDER = False 
+RENDER = True 
 WANDB_LOG = True
-WANDB_RUN_NAME = 'lander-'+ENV+'-isac'
+WANDB_RUN_NAME = 'lander-'+ENV+'-isac-final-hopefully'
 USE_GPU_IF_AVAILABLE = True 
 
 print('OK! All imports successful!')
@@ -186,6 +186,7 @@ if __name__ == '__main__':
     state = env.reset()
     if ENV == '2d': state = state[0]
     episode_reward = 0
+    episode_buffer = []
     print('\nEpisode', episode, 'starting at frame_idx = ', frame_idx)
     
     steps_done = 0
@@ -197,8 +198,8 @@ if __name__ == '__main__':
         action = env.action_space.sample()
         next_state, reward, done, *_ = env.step(action)
       
-      local_buffer.append( (state, action, reward, next_state, done) )
-      replay_buffer.set_latest_transition(local_buffer[-1])
+      episode_buffer.append( [state, action, reward, next_state, done] )
+      replay_buffer.set_latest_transition(episode_buffer[-1])
 
       state = next_state
       episode_reward += reward
@@ -211,6 +212,9 @@ if __name__ == '__main__':
         steps_done = step+1
         break
     
+    for transition in episode_buffer:
+      transition.append(episode_reward)
+      local_buffer.append(transition)
     episode_reward_list.append(episode_reward)
     steps_list.append(steps_done) # store how many steps we did in our episode
     
@@ -219,7 +223,8 @@ if __name__ == '__main__':
     if episode - last_infusion_episode > 2:
       last_infusion_episode = episode
       print("Updating the replay buffer...")
-      replay_buffer.push_transitions(local_buffer, episode_reward_list, steps_list)
+      # replay_buffer.push_transitions(local_buffer, episode_reward_list, steps_list)
+      for transition in local_buffer: replay_buffer.push_transition(*transition)
       episode_reward_list = []
       local_buffer = []
       steps_list = []
