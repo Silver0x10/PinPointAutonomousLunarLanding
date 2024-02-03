@@ -29,7 +29,6 @@ In our training framework, to understand the results of our esperimentation, it'
   
 - **Global Episode:** On the other hand, global episodes represent a shared counter utilized across all agents, particularly in multi-processing setups. While the main agent may have completed 100 local episodes, the global episode count might exceed 100 due to the involvement of other agents. This shared counter ensures synchronization and coordination among all agents during training.
 
-in our graphs, Local episode is described simply as Episode.
 # Hyperparameters of main agent:
 
 - `MAX_EPISODES`: 1000
