@@ -21,6 +21,13 @@ python3 ISAC_train_torch.py
 python3 AISAC_train_torch.py
 python3 SAC_train_torch.py
 ```
+To start the simulation
+```bash
+python3 test_lander.py env  weightspath numberOfEpisodes 
+```
+where weightspath is the weight file path with respect to SAC folder, and numberOfEpisodes number of episodes for test.
+To utilize the weights obtained from our experimentation:
+[Weights download](https://drive.google.com/file/d/1O-KuW9f6e0KTG6RhgF9kD7ht7wlNOHlN/view?usp=sharing)
 
 In our training framework, to understand the results of our esperimentation, it's crucial to understand the distinction between two points of view local episodes and global episodes:
 
