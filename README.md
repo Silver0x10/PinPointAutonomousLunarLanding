@@ -7,6 +7,8 @@ Our contribution to the field, AISAC, extends ISAC's capabilities by introducing
 ## Disclaimer
 The 3D lunar simulation environment is not our original work. It was provided by the authors of the paper "Deep Reinforcement Learning for Pin-Point Autonomous Lunar Landing: Trajectory Recalculation for Obstacle Avoidance" by Giulia Ciabatti, Dario Spiller, Shreyansh Daftry, Roberto Capobianco & Fabio Curti. They generously shared the environment with us prior to its public release, a contribution for which we are immensely grateful as it was essential for testing our algorithms. All credit for the simulation environment belongs to the original authors.
 
+It is now publicly available at the following link: [proximity-operations-planetary-landing](https://github.com/Giulia1809/proximity-operations-planetary-landing)
+
 
 ## Abstracts of Implemented Papers
 - **Deep Reinforcement Learning for Pin-Point Autonomous Lunar Landing: Trajectory Recalculation for Obstacle Avoidance:** This work aims to present a method to perform autonomous precision landing—pin-point landing—on a planetary environment and perform trajectory recalculation for fault recovery where necessary. In order to achieve this, we choose to implement a Deep Reinforcement Learning—DRL—algorithm, i.e. the Soft Actor-Critic—SAC—architecture. In particular, we select the lunar environment for our experiments, which we perform in a simulated environment, exploiting a real-physics simulator modeled by means of the Bullet/PyBullet physical engine. We show that the SAC algorithm can learn an effective policy for precision landing and trajectory recalculation if fault recovery is made necessary—e.g. for obstacle avoidance.
